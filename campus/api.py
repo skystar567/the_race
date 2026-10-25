@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .materials import Materials
 from .reading import reference_context, render
+from .knowledge_api import knowledge_router
 
 
 class CourseInput(BaseModel):
@@ -22,7 +23,7 @@ class CourseInput(BaseModel):
         return value.strip()
 
 
-def create_app(data_dir: Path, static_dir: Path | None = None) -> FastAPI:
+def create_app(data_dir: Path, static_dir: Path | None = None, model=None) -> FastAPI:
     app = FastAPI(title="课程学习空间")
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
     materials = Materials(data_dir)
@@ -93,6 +94,8 @@ def create_app(data_dir: Path, static_dir: Path | None = None) -> FastAPI:
         context = reference_context(materials.raw(course_id, material_id).decode("utf-8"))
         return [fragment | {"html": render(fragment["markdown"], context)}
                 for fragment in materials.fragments(course_id, material_id, chapter_id)]
+
+    app.include_router(knowledge_router(data_dir, model=model))
 
     if static_dir is not None:
         static_root = static_dir.resolve()

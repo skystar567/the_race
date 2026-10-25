@@ -1,5 +1,7 @@
 import argparse
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import uvicorn
@@ -15,7 +17,21 @@ def main():
     args = parser.parse_args()
     if not (root / "dist/index.html").is_file():
         parser.error("尚未构建前端，请先运行 npm run build")
-    uvicorn.run(create_app(args.data_dir, static_dir=root / "dist"), host="127.0.0.1", port=args.port)
+    # A separate process survives browser disconnection. Never execute model text.
+    worker = subprocess.Popen(
+        [sys.executable, "-m", "campus.worker", "--data-dir", str(args.data_dir.resolve())],
+        cwd=root,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+    try:
+        uvicorn.run(create_app(args.data_dir, static_dir=root / "dist"), host="127.0.0.1", port=args.port)
+    finally:
+        worker.terminate()
+        try:
+            worker.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            worker.kill()
+            worker.wait()
 
 
 if __name__ == "__main__":

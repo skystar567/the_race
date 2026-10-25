@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Course, Material, MaterialDetail, Fragment, request, materialUrl } from './api';
+import { Course, KnowledgeVersion, Material, MaterialDetail, Fragment, request, materialUrl } from './api';
+import { KnowledgeWorkspace } from './knowledge';
 import './style.css';
 
 function Icon({ name, size = 20 }: { name: 'book' | 'plus' | 'upload' | 'file' | 'arrow' | 'close'; size?: number }) {
@@ -47,7 +48,8 @@ function App() {
   const [detail, setDetail] = useState<MaterialDetail | null>(null);
   const [chapterId, setChapterId] = useState('');
   const [fragments, setFragments] = useState<Fragment[]>([]);
-  const [view, setView] = useState<'read' | 'source'>('read');
+  const [workspace, setWorkspace] = useState<'materials' | 'knowledge'>('materials');
+  const [readerMode, setReaderMode] = useState<'read' | 'source'>('read');
   const [source, setSource] = useState<Fragment | null>(null);
   const [creating, setCreating] = useState(false);
   const [courseName, setCourseName] = useState('');
@@ -57,6 +59,7 @@ function App() {
   const [reading, setReading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [knowledgeReady, setKnowledgeReady] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
   const uploadController = useRef<AbortController | null>(null);
   const currentCourse = useRef(courseId);
@@ -89,6 +92,16 @@ function App() {
     }).catch(report).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [courseId]);
+
+  useEffect(() => {
+    setKnowledgeReady(false);
+    if (!courseId) return;
+    const controller = new AbortController();
+    request<KnowledgeVersion[]>(`/api/courses/${courseId}/knowledge/versions`, { signal: controller.signal })
+      .then(versions => setKnowledgeReady(versions.some(version => version.is_current)))
+      .catch(() => setKnowledgeReady(false));
+    return () => controller.abort();
+  }, [courseId, workspace]);
 
   useEffect(() => {
     setDetail(null); setFragments([]); setChapterId(''); setSource(null);
@@ -150,8 +163,17 @@ function App() {
     </aside>
 
     <main>
-      <header className="topbar"><span>我的学习空间 <span className="breadcrumb-slash">/</span> <strong>{course?.name ?? '欢迎'}</strong></span><span className="local-badge">LOCAL · 本机</span></header>
+      <header className="topbar"><span>我的学习空间 <span className="breadcrumb-slash">/</span> <strong>{course?.name ?? '欢迎'}</strong></span>
+        <nav className="workspace-tabs" aria-label="工作区视图">
+          <button className={workspace === 'materials' ? 'active' : ''} onClick={() => setWorkspace('materials')}>资料阅读</button>
+          <button className={workspace === 'knowledge' ? 'active' : ''} onClick={() => setWorkspace('knowledge')}>知识图谱</button>
+        </nav>
+        <span className="local-badge">LOCAL · 本机</span></header>
       <div className="workspace">
+        {workspace === 'knowledge' ? (<>
+          <div className="page-heading"><div><div className="eyebrow">COURSE KNOWLEDGE</div><h1>{course?.name ?? '课程知识'}</h1><p>章节与知识点、包含 / 前置 / 对比关系，以及可核查的原文依据。</p></div></div>
+          {courseId ? <KnowledgeWorkspace key={courseId} courseId={courseId} /> : <div className="empty-state">请先创建或选择一门课程。</div>}
+        </>) : (<>
         <div className="page-heading"><div><div className="eyebrow">LEARNING MATERIALS</div><h1>{course?.name ?? '从一门课程开始'}</h1><p>{course ? '教材、课堂笔记与补充材料，在这里集中阅读。' : '建立自己的学习空间，把散落的资料放在一起。'}</p></div>
           <button className="primary" disabled={uploading || !courseId} onClick={() => uploadRef.current?.click()}><Icon name="upload" size={18} />{uploading ? '正在导入…' : '导入 Markdown'}</button>
           <input ref={uploadRef} className="visually-hidden" type="file" accept=".md,text/markdown" aria-label="选择 Markdown 文件" onChange={e => void upload(e.target.files?.[0])} />
@@ -172,13 +194,14 @@ function App() {
             {detail && <><div className="pane-label toc-title">章节目录 <span>{detail.chapters.length}</span></div><nav className="toc" aria-label="章节目录"><button className={!chapterId ? 'selected' : ''} onClick={() => setChapterId('')}>全部原文</button>{detail.chapters.map(chapter => <button key={chapter.id} className={chapterId === chapter.id ? 'selected' : ''} style={{ paddingLeft: `${12 + (chapter.level - 1) * 10}px` }} onClick={() => setChapterId(chapter.id)}>{chapter.title}</button>)}</nav></>}
           </aside>
           <article className="reader" aria-label="资料正文">
-            {detail ? <><div className="reader-toolbar"><div className="view-tabs" aria-label="阅读模式"><button className={view === 'read' ? 'selected' : ''} onClick={() => setView('read')}>阅读</button><button className={view === 'source' ? 'selected' : ''} onClick={() => setView('source')}>原文</button></div><a className="download-link" href={materialUrl(courseId, materialId) + '/raw'}>下载原始文件 ↗</a></div>
-              <div className="document-heading"><div className="document-meta"><span className="imported-badge">已导入 · 尚未整理</span><span>{detail.fragment_count} 个原文片段</span></div><h2>{detail.filename.replace(/\.md$/i, '')}</h2><p>保留上传内容，章节目录依据原文编号组织。</p>{detail.missing_image_count > 0 && <div className="image-notice">资料引用了 {detail.missing_image_count} 张未导入的图片，阅读时会标出缺失位置。</div>}</div>
-              {reading ? <div className="reading-placeholder" role="status">正在读取原文…</div> : view === 'read' ? <ReadingContent fragments={fragments} onSource={setSource} /> : <div className="raw-content">{fragments.map(fragment => <section key={fragment.id}><div className="raw-line-label">第 {fragment.start_line}—{fragment.end_line} 行</div><pre>{fragment.markdown}</pre></section>)}</div>}
-              <footer className="reader-footer">原文片段可追溯到上传文件 · 此页展示学习资料，不代表已建立课程知识库</footer>
+            {detail ? <><div className="reader-toolbar"><div className="view-tabs" aria-label="阅读模式"><button className={readerMode === 'read' ? 'selected' : ''} onClick={() => setReaderMode('read')}>阅读</button><button className={readerMode === 'source' ? 'selected' : ''} onClick={() => setReaderMode('source')}>原文</button></div><a className="download-link" href={materialUrl(courseId, materialId) + '/raw'}>下载原始文件 ↗</a></div>
+              <div className="document-heading"><div className="document-meta"><span className={`imported-badge ${knowledgeReady ? 'ready' : ''}`}>{knowledgeReady ? '已整理 · 知识图谱可用' : '已导入 · 尚未整理'}</span><span>{detail.fragment_count} 个原文片段</span></div><h2>{detail.filename.replace(/\.md$/i, '')}</h2><p>保留上传内容，章节目录依据原文编号组织。</p>{detail.missing_image_count > 0 && <div className="image-notice">资料引用了 {detail.missing_image_count} 张未导入的图片，阅读时会标出缺失位置。</div>}</div>
+              {reading ? <div className="reading-placeholder" role="status">正在读取原文…</div> : readerMode === 'read' ? <ReadingContent fragments={fragments} onSource={setSource} /> : <div className="raw-content">{fragments.map(fragment => <section key={fragment.id}><div className="raw-line-label">第 {fragment.start_line}—{fragment.end_line} 行</div><pre>{fragment.markdown}</pre></section>)}</div>}
+              <footer className="reader-footer">{knowledgeReady ? '原文片段可追溯到上传文件 · 课程已发布知识版本，可在「知识图谱」查看' : '原文片段可追溯到上传文件 · 此页展示学习资料，尚未整理为课程知识'}</footer>
             </> : <div className="reading-placeholder">正在打开资料…</div>}
           </article>
         </div>}
+        </>)}
       </div>
     </main>
     {creating && <Modal title="新建课程" onClose={() => { if (!saving) setCreating(false); }}><form onSubmit={event => void createCourse(event)}><label htmlFor="course-name">课程名称</label><input id="course-name" autoFocus required maxLength={120} placeholder="例如：计算机操作系统" value={courseName} onChange={e => setCourseName(e.target.value)} /><p className="form-help">每门课程分别保存自己的资料与学习内容。</p>{error && <p className="message error" role="alert">{error}</p>}<button className="primary" type="submit" disabled={saving || !courseName.trim()}>{saving ? '正在创建…' : '创建课程'}</button></form></Modal>}
