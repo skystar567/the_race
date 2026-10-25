@@ -87,7 +87,7 @@ class DeepSeek:
         status = response.status_code
         if status in {401, 403}:
             raise ModelError("authentication", "模型凭据无效或没有调用权限。")
-        if status == 429 or status >= 500:
+        if status in {408, 429} or status >= 500:
             raise ModelError("temporary", f"模型服务暂时不可用（{status}）。", True)
         raise ModelError("request", f"模型请求被拒绝（{status}），请检查配置与请求范围。")
 

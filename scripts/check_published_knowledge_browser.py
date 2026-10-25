@@ -10,6 +10,11 @@ import asyncio
 from playwright.async_api import async_playwright, expect
 
 
+def concept_label(concept):
+    return (concept["name"] + (" · 待核对" if concept["status"] == "needs_review" else "")
+            + (" · 有冲突" if concept.get("conflicts") else ""))
+
+
 async def check(args):
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
@@ -71,18 +76,34 @@ async def check(args):
             for chapter_id in selected_chapters:
                 await page.get_by_role("button", name="展开 " + chapter_rows[chapter_id]["title"], exact=True).click()
             for concept in shared:
-                await expect(page.locator(".concept-list").get_by_role("button", name=concept["name"], exact=True)).to_have_count(1)
+                await expect(page.locator(".concept-list").get_by_role("button", name=concept_label(concept), exact=True)).to_have_count(1)
             await page.get_by_role("button", name="跨章节关联", exact=True).click()
             for concept in shared:
-                await expect(page.locator(".concept-list").get_by_role("button", name=concept["name"], exact=True)).to_have_count(1)
+                await expect(page.locator(".concept-list").get_by_role("button", name=concept_label(concept), exact=True)).to_have_count(1)
         await page.get_by_role("button", name="全图", exact=True).click()
         await expect(page.locator(".graph-canvas canvas").first).to_be_visible()
         for concept in snapshot["concepts"]:
             detail = await (await page.request.get(base + f"/versions/{version}/concepts/{concept['id']}")).json()
             assert detail["version_id"] == version
-            await page.locator(".concept-list").get_by_role("button", name=concept["name"], exact=True).click()
+            await page.locator(".concept-list").get_by_role("button", name=concept_label(concept), exact=True).click()
             await expect(page.locator(".concept-panel-head h2")).to_have_text(concept["name"])
             await expect(page.locator(".concept-page")).not_to_be_empty()
+            if concept["status"] == "needs_review":
+                await expect(page.locator(".identity-review")).to_be_visible()
+            for conflict_index, conflict in enumerate(concept.get("conflicts", [])):
+                card = page.locator(".conflict-card").nth(conflict_index)
+                await expect(card).to_contain_text(conflict["reason"])
+                for claim_index, claim in enumerate(conflict["claims"]):
+                    side = card.locator(".conflict-claim").nth(claim_index)
+                    await expect(side).to_contain_text(claim["statement"])
+                    await expect(side).to_contain_text(claim["context"])
+                    await side.get_by_role("button").click()
+                    source = await (await page.request.get(base + f"/versions/{version}/sources/{claim['citation']['snippet_id']}")).json()
+                    dialog = page.locator("dialog.source-dialog")
+                    await expect(dialog).to_be_visible()
+                    await dialog.locator("summary").click()
+                    await expect(dialog.locator(".source-original")).to_have_text(source["markdown"])
+                    await dialog.get_by_role("button", name="关闭", exact=True).click()
             for index, citation in enumerate(detail["citations"]):
                 source = await (await page.request.get(base + f"/versions/{version}/sources/{citation['snippet_id']}")).json()
                 assert source["version_id"] == version

@@ -45,6 +45,12 @@ export interface Citation {
   quote: string;
 }
 
+export interface KnowledgeConflict {
+  id: string;
+  reason: string;
+  claims: Array<{ statement: string; context: string; citation: Citation }>;
+}
+
 export interface KnowledgeConcept {
   id: string;
   name: string;
@@ -56,6 +62,7 @@ export interface KnowledgeConcept {
   is_new: boolean;
   is_updated?: boolean;
   identity_reason?: string;
+  conflicts?: KnowledgeConflict[];
   citations: Citation[];
 }
 
@@ -141,6 +148,7 @@ export interface Task {
   parent_version_id: string | null;
   error_code: string | null;
   error_message: string | null;
+  recovery_count?: number;
   steps: TaskStep[];
 }
 

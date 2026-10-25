@@ -1,0 +1,8 @@
+{
+  "kind": "synthetic_acceptance",
+  "author": "project acceptance fixture",
+  "sample_sha256": "b313dabe37ce1abe34a9da87b8053277d26797579f8e6a8dd4e9200995e9ae53",
+  "characters": 264,
+  "bytes": 766,
+  "note": "人工编写的身份与冲突验收案例，不是教材或教师讲义；有意包含前趋图允许有向环的错误主张，用于检验双方出处保留，不可作为学习事实。"
+}

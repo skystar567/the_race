@@ -7,7 +7,7 @@ import re
 from typing import Any
 from uuid import UUID, uuid5
 
-from .knowledge_models import Citation, KnowledgeDraft, PagesDraft
+from .knowledge_models import Citation, ConflictDraft, ConflictRecord, KnowledgeDraft, PagesDraft
 
 RELATION_KINDS = {"contains", "precedes", "contrasts"}
 RELATION_ORIGINS = {"source", "suggested"}
@@ -35,6 +35,26 @@ def citation_fragment_id(citation: Citation, fragments: dict[str, dict[str, Any]
 
 def check_citation(citation: Citation, fragments: dict[str, dict[str, Any]]) -> None:
     citation_fragment_id(citation, fragments)
+
+
+def conflict_evidence_key(conflict: ConflictDraft) -> tuple[tuple[str, str], ...]:
+    """The same quoted sides remain one conflict despite ordering or paraphrases."""
+    return tuple(sorted({(claim.citation.snippet_id, normalize_text(claim.citation.quote))
+                         for claim in conflict.claims}))
+
+
+def validate_conflict(
+    conflict: ConflictDraft, fragments: dict[str, dict[str, Any]], declared: set[str],
+) -> set[str]:
+    """Require independent, attributable sides; semantic disagreement is reviewed separately."""
+    if not conflict.reason.strip() or any(not c.statement.strip() or not c.context.strip() for c in conflict.claims):
+        raise ValueError("冲突说明、各方表述及适用语境不能为空。")
+    cited = {claim.citation.snippet_id for claim in conflict.claims}
+    if len(cited) < 2 or not cited <= declared:
+        raise ValueError("冲突必须保留知识点内至少两个不同原文片段的依据。")
+    for claim in conflict.claims:
+        check_citation(claim.citation, fragments)
+    return cited
 
 
 def citation_inside_chapter(
@@ -192,6 +212,7 @@ def validate_snapshot(snapshot: dict[str, Any]) -> None:
         raise ValueError("知识版本的关系结构无效。")
 
     concept_ids: set[str] = set()
+    conflict_ids: set[str] = set()
     citations_by_concept: dict[str, list[Citation]] = {}
     for concept in concepts:
         if not isinstance(concept, dict):
@@ -218,6 +239,20 @@ def validate_snapshot(snapshot: dict[str, Any]) -> None:
             if citation_inside_chapter(citations, chapters[chapter_id], fragments) is None:
                 raise ValueError("知识点的章节归属缺少该章节内的原文依据。")
         declared = {citation.snippet_id for citation in citations}
+        conflicts = concept.get("conflicts", [])
+        if not isinstance(conflicts, list):
+            raise ValueError("知识点冲突结构无效。")
+        conflict_evidence = set()
+        for raw_conflict in conflicts:
+            conflict = ConflictRecord.model_validate(raw_conflict)
+            if conflict.id in conflict_ids:
+                raise ValueError("冲突标识重复。")
+            conflict_ids.add(conflict.id)
+            validate_conflict(conflict, fragments, declared)
+            evidence_key = conflict_evidence_key(conflict)
+            if evidence_key in conflict_evidence:
+                raise ValueError("知识点存在相同原文依据的重复冲突。")
+            conflict_evidence.add(evidence_key)
         if any(snippet_id not in declared for snippet_id in INLINE_REFERENCE.findall(concept["page_md"])):
             raise ValueError("知识页面引用了未声明的原文片段。")
         citations_by_concept[concept_id] = citations
@@ -280,3 +315,5 @@ def validate_snapshot(snapshot: dict[str, Any]) -> None:
         value = summary.get(field)
         if not isinstance(value, int) or value < 0:
             raise ValueError("知识版本摘要无效。")
+    if summary["conflicts"] != len(conflict_ids):
+        raise ValueError("知识版本冲突摘要与实际冲突不一致。")

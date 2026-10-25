@@ -25,6 +25,12 @@ const STATUS_LABEL: Record<Task['status'], string> = {
   completed: '已完成',
   failed: '失败',
 };
+const RECOVERY_LABEL: Record<Task['status'], string> = {
+  queued: '等待继续执行。',
+  running: '继续未完成步骤。',
+  completed: '任务已完成。',
+  failed: '恢复后仍未完成，请查看失败原因后重试。',
+};
 const STEP_MARK: Record<Task['steps'][number]['status'], string> = {
   pending: '待处理',
   running: '进行中',
@@ -107,6 +113,7 @@ function ConceptPanel({
     [snapshot.concepts],
   );
   const chapters = snapshot.chapters.filter(chapter => concept.chapter_ids.includes(chapter.id));
+  const conflicts = concept.conflicts ?? [];
   const relations = snapshot.relations.filter(
     relation => relation.kind !== 'contains' && (relation.from_id === concept.id || relation.to_id === concept.id),
   );
@@ -140,6 +147,26 @@ function ConceptPanel({
       </div>
       {concept.status === 'needs_review' && <p className="identity-review" role="note">待核对：{concept.identity_reason ?? '尚不能确认概念身份，暂时独立保留。'}</p>}
       {concept.is_updated && <p className="concept-change">本次资料补充了此知识点，原有身份与出处已保留。</p>}
+      {conflicts.length > 0 && <section className="concept-conflicts" aria-label="资料冲突">
+        <h3>资料冲突 · {conflicts.length}</h3>
+        <p className="conflict-help">以下资料存在不相容的表述。各方依据均已保留，请结合语境查看原文。</p>
+        {conflicts.map(conflict => <article className="conflict-card" key={conflict.id}>
+          <p className="conflict-reason">{conflict.reason}</p>
+          {conflict.claims.map((claim, index) => {
+            const source = concept.citations.find(citation => citation.snippet_id === claim.citation.snippet_id);
+            return <div className="conflict-claim" key={`${claim.citation.snippet_id}-${index}`}>
+              <h4>表述 {index + 1}</h4>
+              <p>{claim.statement}</p>
+              <p className="conflict-context">适用语境：{claim.context}</p>
+              <blockquote>{claim.citation.quote}</blockquote>
+              <button className="conflict-source" onClick={() => onOpenSource(claim.citation.snippet_id)}>
+                查看表述 {index + 1} 原文
+                {source && <small>{source.filename} · L{source.start_line}–{source.end_line}</small>}
+              </button>
+            </div>;
+          })}
+        </article>)}
+      </section>}
       <p className="concept-definition">{concept.definition}</p>
       <div
         ref={page}
@@ -215,6 +242,9 @@ function TaskPanel({ task, onRetry, busy }: { task: Task; onRetry: () => void; b
           </li>
         ))}
       </ol>
+      {(task.recovery_count ?? 0) > 0 && <p className="task-recovery" role="status">
+        已恢复 {task.recovery_count} 次，{RECOVERY_LABEL[task.status]}
+      </p>}
       {task.error_message && (
         <p className="task-error" role="alert">
           {task.error_message}
@@ -443,7 +473,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
       {published && activeTask && <p className="update-reading" role="status">追加整理期间，当前版本仍可阅读；成功后将一起更新知识和来源。</p>}
       {published && <details className="update-picker"><summary>选择追加整理范围</summary>{scopePicker}</details>}
       {published && knowledge?.parent_version_id && knowledge.summary && <p className="update-summary" role="status">
-        当前版本更新：新增 {knowledge.summary.new_concepts} · 补充 {knowledge.summary.updated_concepts} · 待核对 {knowledge.summary.needs_review ?? 0}
+        当前版本更新：新增 {knowledge.summary.new_concepts} · 补充 {knowledge.summary.updated_concepts} · 待核对 {knowledge.summary.needs_review ?? 0} · 冲突 {knowledge.summary.conflicts}
       </p>}
       {published && coverage && <CoveragePanel coverage={coverage} />}
 

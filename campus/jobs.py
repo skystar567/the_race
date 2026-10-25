@@ -1,7 +1,8 @@
-"""Durable first-build jobs; one lease coordinates all local worker processes."""
+"""Durable knowledge jobs; one lease coordinates all local worker processes."""
 
 import asyncio
 import json
+import math
 import sys
 import time
 import traceback
@@ -49,7 +50,10 @@ class LeaseLost(RuntimeError):
 class Jobs:
     """Own task persistence and the fixed pipeline; no model-produced SQL or paths."""
 
-    def __init__(self, data_dir: Path, model: DeepSeek | None = None) -> None:
+    def __init__(self, data_dir: Path, model: DeepSeek | None = None, *, lease_seconds: float = LEASE_SECONDS) -> None:
+        if not math.isfinite(lease_seconds) or lease_seconds < 2:
+            raise ValueError("工作租约必须是至少 2 秒的有限数值。")
+        self.lease_seconds = lease_seconds
         self.materials = Materials(data_dir)
         self.knowledge = Knowledge(data_dir)
         self.model = model or DeepSeek.from_environment()
@@ -59,7 +63,8 @@ class Jobs:
                     id TEXT PRIMARY KEY, course_id TEXT NOT NULL REFERENCES courses(id),
                     status TEXT NOT NULL, selection_json TEXT NOT NULL,
                     version_id TEXT, error_code TEXT, error_message TEXT,
-                    owner TEXT, created_at REAL NOT NULL, parent_version_id TEXT
+                    owner TEXT, created_at REAL NOT NULL, parent_version_id TEXT,
+                    recovery_count INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE TABLE IF NOT EXISTS task_step (
                     task_id TEXT NOT NULL REFERENCES task(id), name TEXT NOT NULL,
@@ -72,8 +77,11 @@ class Jobs:
             """)
             # Serialize the additive migration across API and worker startup.
             db.execute("BEGIN IMMEDIATE")
-            if "parent_version_id" not in {row["name"] for row in db.execute("PRAGMA table_info(task)")}:
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(task)")}
+            if "parent_version_id" not in columns:
                 db.execute("ALTER TABLE task ADD COLUMN parent_version_id TEXT")
+            if "recovery_count" not in columns:
+                db.execute("ALTER TABLE task ADD COLUMN recovery_count INTEGER NOT NULL DEFAULT 0")
 
     def create(self, course_id: str, selection: ScopeInput) -> dict[str, Any]:
         """Pin a base version and queue only previously unorganized source content."""
@@ -135,6 +143,7 @@ class Jobs:
             "scope": scope,
             "version_id": task["version_id"],
             "parent_version_id": task["parent_version_id"],
+            "recovery_count": task["recovery_count"],
             "error_code": task["error_code"],
             "error_message": task["error_message"],
             "steps": [steps[name] for name in STEPS if name in steps],
@@ -188,7 +197,7 @@ class Jobs:
             db.execute(
                 """INSERT INTO worker_lease(id,owner,expires) VALUES (1,?,?)
                 ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,expires=excluded.expires""",
-                (owner, now + LEASE_SECONDS),
+                (owner, now + self.lease_seconds),
             )
             row = db.execute(
                 """SELECT * FROM task WHERE status IN ('running','queued')
@@ -197,7 +206,8 @@ class Jobs:
             if row is None:
                 db.execute("DELETE FROM worker_lease WHERE owner=?", (owner,))
                 return None
-            db.execute("UPDATE task SET status='running',owner=? WHERE id=?", (owner, row["id"]))
+            db.execute("UPDATE task SET status='running',owner=?,recovery_count=recovery_count+? WHERE id=?",
+                       (owner, int(row["status"] == "running"), row["id"]))
             db.execute(
                 "UPDATE task_step SET status='pending' WHERE task_id=? AND status='running'",
                 (row["id"],),
@@ -219,11 +229,11 @@ class Jobs:
     async def heartbeat(self, owner: str) -> None:
         """Keep the global lease alive across slow model I/O."""
         while True:
-            await asyncio.sleep(HEARTBEAT_SECONDS)
+            await asyncio.sleep(min(HEARTBEAT_SECONDS, self.lease_seconds / 3))
             with self.knowledge.connect() as db:
                 changed = db.execute(
                     "UPDATE worker_lease SET expires=? WHERE owner=? AND expires>?",
-                    (time.time() + LEASE_SECONDS, owner, time.time()),
+                    (time.time() + self.lease_seconds, owner, time.time()),
                 ).rowcount
             if not changed:
                 return
@@ -378,7 +388,8 @@ class Jobs:
         if name == "extract":
             result = await self.model_step(
                 "从给定 fragments 抽取具有独立学习意义的知识点和关系。key 为本次抽取内唯一的短标识；"
-                "chapter_ids 只能使用给定的章节 id；每条引用使用给定 snippet id。",
+                "chapter_ids 只能使用给定的章节 id，每个归属章节必须有该章节范围内的实际原文引用。"
+                "不要仅因标题提到主题就加入无对应引用的章节；每条引用使用给定 snippet id。",
                 source,
                 KnowledgeDraft.model_json_schema(),
             )
@@ -391,11 +402,15 @@ class Jobs:
                     "整合本次追加资料与已有知识。只输出新增或有新依据需要补充的知识点；不要重写未受影响的知识。"
                     "对每个候选比较定义、上下文及原文依据，只有确认同一概念才能填 existing_id，且必须同时引用旧资料和 new_snippet_ids 中的新资料。"
                     "名称相同不是合并依据；别名仅为同义表达，不能把组成部分、相关术语或子类型当成别名。"
+                    "同义异名需结合定义和语境沿用身份；同名异义须独立。同一概念在不同适用条件下的说明可以并存，不自动视为矛盾。"
                     "无法确认时 existing_id=null、identity_status=needs_review，独立保留并在 identity_reason 说明；明确的新概念为 confirmed。"
+                    "对确有相互排斥主张的同一概念，在 conflicts 保留 reason 和各方 claims；每方提供 statement、适用 context 与原文 citation。"
+                    "冲突引用必须也列入该概念 citations；沿用身份的新冲突至少有一方来自该概念旧依据、一方来自本次新片段。"
+                    "不得只因措辞不同就报冲突，不得用外部常识删除资料中的异议；尚未解决时保留双方，不擅自选一方当唯一结论。"
                     "key 使用新的短标识，不要用已有 ID 作 key；关系端点可用本次 key 或已有知识点 ID。"
                     "补充的定义须保留旧知识中仍适用的内容和条件。保留同一概念在不同章节的依据，不把例子单列为知识点。",
                     {"source": combined_source(previous, source), "new_snippet_ids": [f["id"] for f in source["fragments"]],
-                     "existing_concepts": [{k: c[k] for k in ("id", "name", "aliases", "definition", "chapter_ids", "citations", "status")}
+                     "existing_concepts": [{k: c[k] for k in ("id", "name", "aliases", "definition", "chapter_ids", "citations", "status")} | {"conflicts": c.get("conflicts", [])}
                                            for c in previous["concepts"]], "draft": results["extract"]},
                     KnowledgeUpdate.model_json_schema(),
                 )
@@ -424,6 +439,7 @@ class Jobs:
                 result = await self.model_step(
                     "为本次新增、补充知识点生成 Markdown 页面，key 与 draft 一一对应。"
                     "补充页面保留旧页面仍适用的定义、条件和依据，再加入新资料。不要为未受影响的已有知识生成页面。"
+                    "存在 conflicts 时明确说明资料存在未解决分歧，逐方保留主张、适用语境与原文；不要悄悄覆盖任一方或宣称已裁定。"
                     "正文使用 [原文](snippet:片段ID) 标记实际引用，citations 列出相同引用。身份待核对时不能宣称与旧知识已合并。",
                     {"source": combined_source(previous, source), "draft": update.model_dump(),
                      "existing_pages": [c for c in previous["concepts"] if c["id"] in touched]},

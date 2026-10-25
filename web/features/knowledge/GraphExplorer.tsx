@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import cytoscape, { type Core, type ElementDefinition, type Position } from 'cytoscape';
-import { type KnowledgeSnapshot } from '../../api';
+import { type KnowledgeConcept, type KnowledgeSnapshot } from '../../api';
 import { GRAPH_STYLE } from './graph-style';
 
 const KIND_LABEL = { contains: '包含', precedes: '前置', contrasts: '对比' } as const;
 const MODES = { chapters: '章节概览', cross: '跨章节关联', full: '全图' } as const;
 type Mode = keyof typeof MODES;
 type Viewport = { zoom: number; pan: Position; positions: Map<string, Position> };
+
+function conceptLabel(concept: KnowledgeConcept) {
+  return concept.name + (concept.status === 'needs_review' ? ' · 待核对' : '')
+    + (concept.conflicts?.length ? ' · 有冲突' : '');
+}
 
 /** Own graph views and their viewport state without changing knowledge identities. */
 export function GraphExplorer({ snapshot, selectedId, onSelectConcept }: {
@@ -61,7 +66,7 @@ export function GraphExplorer({ snapshot, selectedId, onSelectConcept }: {
       id: `chapter:${chapter.id}`, label: chapter.title, type: 'chapter',
     } })),
     ...snapshot.concepts.map(concept => ({ data: {
-      id: `concept:${concept.id}`, label: concept.name + (concept.status === 'needs_review' ? ' · 待核对' : ''), type: 'concept',
+      id: `concept:${concept.id}`, label: conceptLabel(concept), type: 'concept',
     } })),
     ...snapshot.relations.map(relation => ({ data: {
       id: `relation:${relation.id}`, source: `${relation.from_type}:${relation.from_id}`,
@@ -175,7 +180,7 @@ export function GraphExplorer({ snapshot, selectedId, onSelectConcept }: {
         {visible.length === 0 && <span className="muted">{mode === 'chapters' ? '展开章节后显示知识点' : '当前版本没有可显示的跨章节知识'}</span>}
         {visible.map(concept => <button key={concept.id} className={`chip-toggle ${selectedId === concept.id ? 'on' : ''}`}
           title={concept.chapter_ids.length > 1 ? '此知识点关联多个章节' : undefined}
-          onClick={() => onSelectConcept(concept.id)}>{concept.name}{concept.status === 'needs_review' ? ' · 待核对' : ''}</button>)}
+          onClick={() => onSelectConcept(concept.id)}>{conceptLabel(concept)}</button>)}
       </div>
     </div>
     <div className="graph-legend">
