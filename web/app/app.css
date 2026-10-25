@@ -1,0 +1,52 @@
+.app-shell{display:flex;min-height:100vh}
+.sidebar{width:242px;flex-shrink:0;background:#203e35;color:#f4f5ec;padding:35px 20px 24px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{display:flex;gap:12px;align-items:center;text-decoration:none;font-size:16px;font-weight:600;letter-spacing:.7px}
+.brand-mark{display:grid;place-items:center;width:40px;height:43px;border:1px solid #81958a;border-radius:11px}
+.brand small{display:block;font-size:8px;letter-spacing:2px;font-weight:400;color:#abbfb1;margin-top:5px}
+.sidebar-label{display:flex;justify-content:space-between;color:#a6b8ac;font-size:11px;letter-spacing:1.5px;margin:48px 9px 18px}
+.sidebar-label span{font-size:10px;color:#789586}
+.course-list{display:flex;flex-direction:column;gap:7px;overflow:auto}
+.course-button{display:flex;align-items:center;gap:10px;background:transparent;color:#cedbd0;padding:13px 10px;border-radius:8px;text-align:left;width:100%}
+.course-button:hover{background:#2b4b3f}
+.course-button.active{background:#e6edde;color:#244335}
+.course-monogram{font-size:11px;align-self:flex-start;line-height:21px;opacity:.65}
+.course-name{flex:1;min-width:0;overflow-wrap:anywhere;font-size:13px}
+.course-name small{display:block;font-size:10px;margin-top:5px;opacity:.65}
+.new-course{border:1px dashed #577264;color:#ccdbcf;background:transparent;border-radius:8px;display:flex;gap:9px;align-items:center;justify-content:center;padding:12px;margin-top:18px;font-size:12px}
+.new-course:hover{background:#2b4b3f}
+.sidebar-footer{margin-top:auto;padding:35px 10px 0;font-size:11px;color:#c0d0c4}
+.sidebar-footer p{color:#91aa9a;font-size:10px;line-height:1.9;margin:9px 0 0}
+.status-dot{display:inline-block;width:6px;height:6px;background:#a8c18b;border-radius:100%;margin-right:7px}
+main{min-width:0;flex:1}
+.topbar{height:76px;border-bottom:1px solid #e2e7df;display:flex;align-items:center;justify-content:space-between;padding:0 42px;font-size:11px;color:#89958b}
+.topbar strong{color:#435b4b;font-weight:500}
+.breadcrumb-slash{padding:0 14px;color:#b3bdb2}
+.local-badge{font-size:9px;letter-spacing:1.1px;border:1px solid #d8dfd4;padding:5px 9px;border-radius:5px;color:#798d78}
+.workspace{max-width:1580px;margin:auto;padding:37px 42px 45px}
+.welcome-state{margin-top:35px}
+@media(min-width:1550px){
+.workspace{padding-left:58px;padding-right:58px}
+}
+@media(max-width:1100px){
+.sidebar{width:208px;padding:30px 14px}
+.brand{font-size:14px;gap:9px}
+.brand small{font-size:7px}
+.workspace{padding:28px 24px}
+.topbar{padding:0 24px}
+}
+@media(max-width:780px){
+.app-shell{display:block}
+.sidebar{position:static;width:auto;height:auto;padding:18px 20px;gap:0}
+.brand{font-size:15px}
+.brand-mark{height:34px;width:34px}
+.brand small{font-size:7px;margin-top:2px}
+.sidebar-label,.sidebar-footer{display:none}
+.course-list{flex-direction:row;margin-top:18px;gap:8px;overflow:auto}
+.course-button{min-width:155px;width:auto;padding:8px 10px}
+.course-monogram,.course-button>svg{display:none}
+.new-course{position:absolute;right:20px;top:18px;margin:0;padding:9px 11px;font-size:11px}
+.course-name small{font-size:9px;margin:0}
+.topbar{height:48px;padding:0 22px}
+.workspace{padding:24px 18px}
+.local-badge{font-size:8px}
+}

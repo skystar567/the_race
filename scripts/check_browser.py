@@ -8,6 +8,39 @@ from uuid import uuid4
 from playwright.async_api import async_playwright, expect
 
 
+async def check_delayed_course_read(page, url, first_name, other_name):
+    courses = await (await page.request.get(url + '/api/courses')).json()
+    first_id = next(course['id'] for course in courses if course['name'] == first_name)
+    pattern = url + f'/api/courses/{first_id}/materials/*/fragments*'
+    arrived, release, completed = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def delay_source(route):
+        # Delay a real HTTP response; keep the app, persistence and parsing real.
+        response = await route.fetch()
+        arrived.set()
+        await release.wait()
+        try:
+            await route.fulfill(response=response)
+        finally:
+            completed.set()
+
+    await page.route(pattern, delay_source)
+    navigation = page.get_by_role('navigation', name='课程', exact=True)
+    try:
+        await navigation.get_by_role('button').filter(has_text=first_name).click()
+        await asyncio.wait_for(arrived.wait(), 10)
+        await navigation.get_by_role('button').filter(has_text=other_name).click()
+        await expect(page.get_by_text('网络课程独立资料。', exact=True)).to_be_visible()
+        release.set()
+        await asyncio.wait_for(completed.wait(), 10)
+        await expect(page.get_by_role('heading', name=other_name, exact=True)).to_be_visible()
+        await expect(page.get_by_role('button', name='验收样本.md')).to_have_count(0)
+        await expect(page.get_by_role('alert')).to_have_count(0)
+    finally:
+        release.set()
+        await page.unroute(pattern, delay_source)
+
+
 async def check(args):
     text = '# 第二章 进程\n\n## 2.1 前趋图\n\n进程 $P_i$。\n\n![前趋图](images/missing.png)\n\n```python\nprint("hello")\n```\n'
     original = text.encode()
@@ -36,11 +69,18 @@ async def check(args):
             await page.get_by_role('link', name='下载原始文件').click()
         download = await downloaded.value
         assert Path(await download.path()).read_bytes() == original
+        await page.get_by_label('选择 Markdown 文件').set_input_files({'name': '无效资料.txt', 'mimeType': 'text/plain', 'buffer': b'not markdown'})
+        await expect(page.get_by_role('alert')).to_contain_text('请选择 Markdown')
         await page.get_by_role('button', name='新建课程', exact=True).click()
+        await expect(page.get_by_role('dialog').get_by_role('alert')).to_have_count(0)
         await page.get_by_label('课程名称').fill(other_name)
         await page.get_by_role('button', name='创建课程', exact=True).click()
         await expect(page.get_by_text('放入你的第一份学习资料')).to_be_visible()
         await expect(page.get_by_role('button', name='验收样本.md')).to_have_count(0)
+        await expect(page.get_by_role('alert')).to_have_count(0)
+        await page.get_by_label('选择 Markdown 文件').set_input_files({'name': '网络资料.md', 'mimeType': 'text/markdown', 'buffer': '# 网络\n\n网络课程独立资料。\n'.encode()})
+        await expect(page.get_by_text('网络课程独立资料。', exact=True)).to_be_visible()
+        await check_delayed_course_read(page, args.url, course_name, other_name)
         await page.get_by_role('navigation', name='课程', exact=True).get_by_role('button').filter(has_text=course_name).click()
         await page.reload()
         await expect(page.get_by_text('已导入 · 尚未整理', exact=True)).to_be_visible()
@@ -54,7 +94,7 @@ async def check(args):
         assert await page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Mobile page overflows'
         assert errors == [], errors
         await browser.close()
-    print('Browser flow passed: create, import, chapters, math, code, missing images, source, download, isolation, reload, mobile.')
+    print('Browser flow passed: create, import, chapters, math, code, missing images, source, download, error isolation, delayed course switch, reload, mobile.')
 
 
 if __name__ == '__main__':

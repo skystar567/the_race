@@ -78,6 +78,7 @@ sh scripts/start.sh --data-dir /tmp/campus-browser-check
 | 文档 | 内容 |
 | --- | --- |
 | [三人协作计划](docs/team-plan.md) | 三人任务分配、并行工作、依赖交接和交付约定 |
+| [前端与资料接口交接](docs/frontend-handoff.md) | A 已完成的前端拆分、B/C 接入位置、现有接口与待交接知识接口 |
 | [共享开发教材](materials/README.md) | 完整教材 Markdown、首次整理样本、出处与使用说明 |
 | [任务 01 验证记录](docs/verification-ticket-01.md) | 实现范围、干净安装、浏览器验收和审查结果 |
 | [开发规格](.scratch/course-learning-assistant/spec.md) | 本地任务追踪器中的完整规格、用户故事、实现与测试决定 |
