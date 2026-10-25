@@ -11,7 +11,7 @@
 - 任务 01 的解析审查问题已修复，已通过前后端干净安装、10 项接口测试、类型检查、前端构建和真实浏览器验收，可作为任务 02 的基础版本。详见[实现与验证记录](verification-ticket-01.md)。
 - 共享仓库为 [skystar567/the_race](https://github.com/skystar567/the_race)，使用 `main` 集成。规格与任务继续在仓库内的本地 Markdown 维护。
 - 完整教材和首次整理短样本已共享在 [`materials/`](../materials/README.md)。
-- A 已完成共享前端拆分，接入约定见[前端交接](frontend-handoff.md)。正在合入 B 的任务 02，修复发布校验、任务接管与图谱标记问题，并补充真实 DeepSeek 短样本验收。B 的原始记录见[任务 02 验证记录](verification-ticket-02.md)。
+- A 已完成共享前端拆分，接入约定见[前端交接](frontend-handoff.md)。已合入并修复 B 的任务 02，46 项测试、真实 DeepSeek 短样本与浏览器验收通过，见[集成验收记录](verification-ticket-02-fixes.md)。下一入口为 A 的任务 03。B 的原始记录见[任务 02 验证记录](verification-ticket-02.md)。
 - 任务 03—15 尚未验收。`ready-for-agent` 表示说明充分，不代表实现完成。
 
 三人开始前共同阅读：
