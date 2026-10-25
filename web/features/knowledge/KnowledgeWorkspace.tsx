@@ -25,6 +25,12 @@ const STATUS_LABEL: Record<Task['status'], string> = {
   completed: '已完成',
   failed: '失败',
 };
+const RECOVERY_LABEL: Record<Task['status'], string> = {
+  queued: '等待继续执行。',
+  running: '继续未完成步骤。',
+  completed: '任务已完成。',
+  failed: '恢复后仍未完成，请查看失败原因后重试。',
+};
 const STEP_MARK: Record<Task['steps'][number]['status'], string> = {
   pending: '待处理',
   running: '进行中',
@@ -237,7 +243,7 @@ function TaskPanel({ task, onRetry, busy }: { task: Task; onRetry: () => void; b
         ))}
       </ol>
       {(task.recovery_count ?? 0) > 0 && <p className="task-recovery" role="status">
-        已恢复 {task.recovery_count} 次，{task.status === 'completed' ? '任务已完成。' : '继续未完成步骤。'}
+        已恢复 {task.recovery_count} 次，{RECOVERY_LABEL[task.status]}
       </p>}
       {task.error_message && (
         <p className="task-error" role="alert">
