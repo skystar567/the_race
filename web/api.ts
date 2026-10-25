@@ -54,6 +54,8 @@ export interface KnowledgeConcept {
   chapter_ids: string[];
   status: string;
   is_new: boolean;
+  is_updated?: boolean;
+  identity_reason?: string;
   citations: Citation[];
 }
 
@@ -95,13 +97,14 @@ export interface KnowledgeFragment {
 export interface KnowledgeSnapshot {
   course_id: string;
   version_id: string | null;
+  parent_version_id?: string | null;
   state: 'published' | 'unpublished';
   concepts: KnowledgeConcept[];
   relations: KnowledgeRelation[];
   chapters: KnowledgeChapter[];
   fragments: KnowledgeFragment[];
   selection: { material_ids: string[]; chapter_ids: string[] } | null;
-  summary: { new_concepts: number; updated_concepts: number; conflicts: number } | null;
+  summary: { new_concepts: number; updated_concepts: number; conflicts: number; needs_review?: number } | null;
 }
 
 export interface ConceptDetail extends KnowledgeConcept {
@@ -135,6 +138,7 @@ export interface Task {
   selection: { material_ids: string[]; chapter_ids: string[] };
   scope: { characters: number; fragments: number; chapters: number };
   version_id: string | null;
+  parent_version_id: string | null;
   error_code: string | null;
   error_message: string | null;
   steps: TaskStep[];

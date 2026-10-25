@@ -11,7 +11,10 @@ from .materials import Materials
 MAX_SCOPE_CHARACTERS = 60_000
 
 
-def resolve_scope(materials: Materials, course_id: str, selection: ScopeInput) -> dict[str, Any]:
+def resolve_scope(
+    materials: Materials, course_id: str, selection: ScopeInput,
+    *, organized_ids: set[str] | None = None,
+) -> dict[str, Any]:
     """Validate course ownership and collect unique, unchanged source fragments."""
     available = materials.list_materials(course_id)
     details = {item["id"]: materials.detail(course_id, item["id"]) for item in available}
@@ -52,13 +55,15 @@ def resolve_scope(materials: Materials, course_id: str, selection: ScopeInput) -
                 and fragment["end_line"] <= selected["end_line"]
                 for selected in ranges
             )
-            if whole_material or inside:
+            if (whole_material or inside) and fragment["id"] not in (organized_ids or set()):
                 fragments[fragment["id"]] = fragment | {
                     "material_id": material_id,
                     "filename": detail["filename"],
                 }
 
     if not fragments:
+        if organized_ids:
+            raise ValueError("所选范围已有知识，全部片段均已整理；请选择尚未整理的资料或章节。")
         raise ValueError("所选范围没有可整理的原文。")
     character_count = sum(len(fragment["markdown"]) for fragment in fragments.values())
     if character_count > MAX_SCOPE_CHARACTERS:

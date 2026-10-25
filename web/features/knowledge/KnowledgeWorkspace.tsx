@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GraphExplorer } from './GraphExplorer';
 import { CoveragePanel } from './CoveragePanel';
+import { ScopePicker } from './ScopePicker';
+import { coverageUrl, type KnowledgeCoverage } from './coverage-api';
 import katex from 'katex';
 import {
   ConceptDetail,
   KnowledgeSnapshot,
-  MaterialDetail,
   ModelStatus,
   SourceDetail,
   Task,
   conceptUrl,
   knowledgeUrl,
-  materialUrl,
   request,
   sourceUrl,
   tasksUrl,
@@ -138,6 +138,8 @@ function ConceptPanel({
           </span>
         ))}
       </div>
+      {concept.status === 'needs_review' && <p className="identity-review" role="note">待核对：{concept.identity_reason ?? '尚不能确认概念身份，暂时独立保留。'}</p>}
+      {concept.is_updated && <p className="concept-change">本次资料补充了此知识点，原有身份与出处已保留。</p>}
       <p className="concept-definition">{concept.definition}</p>
       <div
         ref={page}
@@ -184,19 +186,19 @@ function ConceptPanel({
   );
 }
 
-function TaskPanel({ task, onRetry }: { task: Task; onRetry: () => void }) {
+function TaskPanel({ task, onRetry, busy }: { task: Task; onRetry: () => void; busy: boolean }) {
   return (
     <section className={`task-panel ${task.status}`} aria-live="polite">
       <div className="task-head">
         <div>
           <span className={`badge ${task.status}`}>{STATUS_LABEL[task.status]}</span>
-          <strong>整理任务</strong>
+          <strong>{task.parent_version_id ? '追加整理任务' : '整理任务'}</strong>
           <span className="muted">
             {task.scope.chapters} 个章节 · {task.scope.fragments} 个片段 · {task.scope.characters.toLocaleString()} 字符
           </span>
         </div>
         {task.status === 'failed' && (
-          <button className="secondary" onClick={onRetry}>
+          <button className="secondary" onClick={onRetry} disabled={busy}>
             重试
           </button>
         )}
@@ -220,7 +222,7 @@ function TaskPanel({ task, onRetry }: { task: Task; onRetry: () => void }) {
         </p>
       )}
       {task.status === 'failed' && (
-        <p className="form-help">失败不会发布知识；已完成的步骤会在重试时复用。</p>
+        <p className="form-help">{task.parent_version_id ? '更新失败，原有知识仍可阅读；已完成步骤会在重试时复用。' : '失败不会发布知识；已完成的步骤会在重试时复用。'}</p>
       )}
     </section>
   );
@@ -230,9 +232,11 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
   const [knowledge, setKnowledge] = useState<KnowledgeSnapshot | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [model, setModel] = useState<ModelStatus | null>(null);
-  const [materials, setMaterials] = useState<MaterialDetail[]>([]);
-  const [sources, setSources] = useState<string[]>([]);
-  const [chapters, setChapters] = useState<string[]>([]);
+  const [coverage, setCoverage] = useState<KnowledgeCoverage | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const displayedVersion = useRef<string | null>(null);
+  const refreshController = useRef<AbortController | null>(null);
+  const mutationController = useRef<AbortController | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -241,107 +245,132 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  const loadKnowledge = useCallback(async () => {
-    const snapshot = await request<KnowledgeSnapshot>(knowledgeUrl(courseId));
-    setKnowledge(snapshot);
-    return snapshot;
+  const readPublished = useCallback(async (signal: AbortSignal) => {
+    let snapshot = await request<KnowledgeSnapshot>(knowledgeUrl(courseId), { signal });
+    const coverage = await request<KnowledgeCoverage>(coverageUrl(courseId, snapshot.version_id), { signal });
+    // A first publication can occur between the two reads; null cannot pin a version.
+    if (!snapshot.version_id && coverage.version_id) {
+      snapshot = await request<KnowledgeSnapshot>(knowledgeUrl(courseId) + `?version_id=${encodeURIComponent(coverage.version_id)}`, { signal });
+    }
+    return { snapshot, coverage };
   }, [courseId]);
 
-  const loadTasks = useCallback(async () => {
-    const items = await request<Task[]>(tasksUrl(courseId));
-    setTasks(items);
-    return items;
-  }, [courseId]);
+  const applyPublished = useCallback(({ snapshot, coverage }: { snapshot: KnowledgeSnapshot; coverage: KnowledgeCoverage }) => {
+    if (displayedVersion.current !== snapshot.version_id) {
+      setSelected(null);
+      setSource(null);
+      setSourceId(null);
+      setSelectedId(id => snapshot.concepts.some(concept => concept.id === id) ? id : null);
+    }
+    displayedVersion.current = snapshot.version_id;
+    setKnowledge(snapshot);
+    setCoverage(coverage);
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    displayedVersion.current = null;
     setLoading(true);
     setKnowledge(null);
+    setCoverage(null);
     setTasks([]);
     setSelected(null);
     setSource(null);
+    setSourceId(null);
     setSelectedId(null);
-    setSources([]);
-    setChapters([]);
     setError('');
     (async () => {
-      const [snapshot, taskItems, status, list] = await Promise.all([
-        request<KnowledgeSnapshot>(knowledgeUrl(courseId)),
-        request<Task[]>(tasksUrl(courseId)),
-        request<ModelStatus>('/api/model/status'),
-        request<Array<{ id: string }>>(`/api/courses/${encodeURIComponent(courseId)}/materials`),
+      const [taskItems, status] = await Promise.all([
+        request<Task[]>(tasksUrl(courseId), { signal: controller.signal }),
+        request<ModelStatus>('/api/model/status', { signal: controller.signal }),
       ]);
-      const details = await Promise.all(
-        list.map(material => request<MaterialDetail>(materialUrl(courseId, material.id))),
-      );
-      if (cancelled) return;
-      setKnowledge(snapshot);
+      const bundle = await readPublished(controller.signal);
+      if (controller.signal.aborted) return;
+      applyPublished(bundle);
       setTasks(taskItems);
       setModel(status);
-      setMaterials(details);
-    })()
-      .catch(cause => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : '无法读取课程知识。');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    })().catch(cause => {
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '无法读取课程知识。');
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => {
-      cancelled = true;
+      controller.abort();
+      refreshController.current?.abort();
+      mutationController.current?.abort();
     };
-  }, [courseId]);
+  }, [courseId, readPublished, applyPublished]);
 
   const activeTask = tasks.find(task => task.status === 'queued' || task.status === 'running');
   useEffect(() => {
     if (!activeTask) return;
-    let cancelled = false;
-    const timer = setInterval(async () => {
+    const controller = new AbortController();
+    let timer: number;
+    async function poll() {
       try {
-        const next = await request<Task[]>(tasksUrl(courseId));
-        if (cancelled) return;
-        setTasks(next);
-        if (!next.some(task => task.status === 'queued' || task.status === 'running')) {
-          await loadKnowledge();
+        const next = await request<Task[]>(tasksUrl(courseId), { signal: controller.signal });
+        const finished = next.find(task => task.id === activeTask!.id);
+        if (finished?.status === 'completed' && finished.version_id !== displayedVersion.current) {
+          const bundle = await readPublished(controller.signal);
+          if (controller.signal.aborted) return;
+          applyPublished(bundle);
         }
+        if (controller.signal.aborted) return;
+        setTasks(next);
+        if (next.some(task => task.status === 'queued' || task.status === 'running')) timer = window.setTimeout(poll, 1500);
       } catch {
-        // A transient read failure keeps the last visible state; the next poll retries.
+        if (!controller.signal.aborted) {
+          setError('暂时无法读取整理结果，正在重试；已显示的知识仍可阅读。');
+          timer = window.setTimeout(poll, 1500);
+        }
       }
-    }, 1500);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [activeTask?.id, courseId, loadKnowledge]);
-
-  async function startBuild() {
-    if (!sources.length && !chapters.length) {
-      setError('请选择至少一份资料或一个章节。');
-      return;
     }
+    timer = window.setTimeout(poll, 1500);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [activeTask?.id, courseId, readPublished, applyPublished]);
+
+  async function refreshKnowledge() {
+    refreshController.current?.abort();
+    const controller = new AbortController();
+    refreshController.current = controller;
+    setRefreshing(true);
+    setError('');
+    try {
+      const bundle = await readPublished(controller.signal);
+      if (!controller.signal.aborted) applyPublished(bundle);
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '无法刷新知识。');
+    } finally { if (!controller.signal.aborted) setRefreshing(false); }
+  }
+
+  async function startBuild(selection: NonNullable<KnowledgeSnapshot['selection']>) {
+    const controller = new AbortController();
+    mutationController.current = controller;
     setCreating(true);
     setError('');
     try {
       const task = await request<Task>(tasksUrl(courseId), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ material_ids: sources, chapter_ids: chapters }),
+        method: 'POST', signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selection),
       });
+      if (controller.signal.aborted) return false;
       setTasks(items => [task, ...items]);
+      return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '无法开始整理。');
-    } finally {
-      setCreating(false);
-    }
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '无法开始整理。');
+      return false;
+    } finally { if (!controller.signal.aborted) setCreating(false); }
   }
 
   async function retryTask(task: Task) {
+    const controller = new AbortController();
+    mutationController.current = controller;
+    setCreating(true);
     setError('');
     try {
-      const next = await request<Task>(`${tasksUrl(courseId)}/${task.id}/retry`, { method: 'POST' });
-      setTasks(items => items.map(item => (item.id === next.id ? next : item)));
+      const next = await request<Task>(`${tasksUrl(courseId)}/${task.id}/retry`, { method: 'POST', signal: controller.signal });
+      if (!controller.signal.aborted) setTasks(items => items.map(item => item.id === next.id ? next : item));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '无法重试任务。');
-    }
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '无法重试任务。');
+    } finally { if (!controller.signal.aborted) setCreating(false); }
   }
 
   const versionId = knowledge?.version_id;
@@ -386,26 +415,11 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
     setSourceId(snippetId);
   }
 
-  function toggleMaterial(material: MaterialDetail) {
-    setSources(current =>
-      current.includes(material.id) ? current.filter(id => id !== material.id) : [...current, material.id],
-    );
-    setChapters(current => current.filter(id => !material.chapters.some(chapter => chapter.id === id)));
-  }
-
-  function toggleChapter(materialId: string, chapterId: string) {
-    setChapters(current =>
-      current.includes(chapterId) ? current.filter(id => id !== chapterId) : [...current, chapterId],
-    );
-    setSources(current => current.filter(id => id !== materialId));
-  }
-
-  const organized = useMemo(
-    () => new Set((knowledge?.chapters ?? []).map(chapter => chapter.id)),
-    [knowledge],
-  );
   const latest = tasks[0];
   const published = knowledge?.state === 'published';
+  const busy = creating || refreshing || Boolean(activeTask);
+  const scopePicker = coverage && <ScopePicker coverage={coverage} updating={published} busy={busy}
+    configured={Boolean(model?.configured)} onStart={startBuild} />;
 
   if (loading) {
     return <div className="empty-state" role="status">正在读取课程知识…</div>;
@@ -425,7 +439,12 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
         </div>
       )}
 
-      {latest && <TaskPanel task={latest} onRetry={() => void retryTask(latest)} />}
+      {latest && <TaskPanel task={latest} onRetry={() => void retryTask(latest)} busy={busy || !model?.configured} />}
+      {published && activeTask && <p className="update-reading" role="status">追加整理期间，当前版本仍可阅读；成功后将一起更新知识和来源。</p>}
+      {published && <details className="update-picker"><summary>选择追加整理范围</summary>{scopePicker}</details>}
+      {published && knowledge?.parent_version_id && knowledge.summary && <p className="update-summary" role="status">
+        当前版本更新：新增 {knowledge.summary.new_concepts} · 补充 {knowledge.summary.updated_concepts} · 待核对 {knowledge.summary.needs_review ?? 0}
+      </p>}
       {published && knowledge?.version_id && <CoveragePanel courseId={courseId} versionId={knowledge.version_id} />}
 
       {!published ? (
@@ -435,53 +454,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
             <h2>尚未整理成课程知识</h2>
             <p>选择一小节资料发起整理。只有通过来源与结构校验的版本才会发布；失败时不会产生可用知识。</p>
           </div>
-          <div className="scope-picker">
-            <div className="section-bar">
-              <h2>整理范围</h2>
-              <span>资料按章节选择 · 单次上限 60,000 字符</span>
-            </div>
-            {materials.length === 0 && <p className="muted">这门课程还没有资料，请先在「资料阅读」中导入 Markdown。</p>}
-            {materials.map(material => (
-              <div className="scope-material" key={material.id}>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={sources.includes(material.id)}
-                    onChange={() => toggleMaterial(material)}
-                  />
-                  <span>{material.filename}</span>
-                  <small>{material.chapters.length} 个章节</small>
-                </label>
-                <div className="chapter-chips">
-                  {material.chapters.map(chapter => (
-                    <button
-                      key={chapter.id}
-                      className={`chip-toggle ${chapters.includes(chapter.id) ? 'on' : ''} ${
-                        organized.has(chapter.id) ? 'organized' : ''
-                      }`}
-                      onClick={() => toggleChapter(material.id, chapter.id)}
-                      disabled={sources.includes(material.id)}
-                    >
-                      {chapter.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div className="scope-actions">
-              <span className="muted">
-                已选择 {sources.length} 份资料、{chapters.length} 个章节
-              </span>
-              <button
-                className="primary"
-                onClick={() => void startBuild()}
-                disabled={creating || Boolean(activeTask) || !model?.configured}
-              >
-                {creating ? '正在创建任务…' : '开始整理'}
-              </button>
-            </div>
-            {!model?.configured && <p className="form-help">配置后端模型凭据后才能开始整理。</p>}
-          </div>
+          {scopePicker}
         </section>
       ) : (
         <div className="knowledge-body">
@@ -494,12 +467,12 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
                   {knowledge?.concepts.length} 个知识点 · {knowledge?.relations.length} 条关系
                 </span>
               </div>
-              <span className="muted">当前展示首次整理的知识</span>
+              <button className="secondary" disabled={busy} onClick={() => void refreshKnowledge()}>{refreshing ? '正在刷新…' : '刷新知识'}</button>
             </div>
             {knowledge && <GraphExplorer key={knowledge.version_id} snapshot={knowledge} selectedId={selectedId} onSelectConcept={selectConcept} />}
 
           </div>
-          {selected && knowledge && (
+          {selected && knowledge && selected.version_id === knowledge.version_id && (
             <ConceptPanel
               concept={selected}
               snapshot={knowledge}
@@ -515,7 +488,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
         </div>
       )}
 
-      {source && <SourceDialog source={source} onClose={() => setSourceId(null)} />}
+      {source && source.version_id === versionId && <SourceDialog source={source} onClose={() => setSourceId(null)} />}
     </div>
   );
 }

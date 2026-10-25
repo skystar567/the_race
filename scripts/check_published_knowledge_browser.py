@@ -22,9 +22,34 @@ async def check(args):
         snapshot = await (await page.request.get(base)).json()
         assert snapshot["state"] == "published" and snapshot["concepts"]
         version = snapshot["version_id"]
+        if args.previous_version:
+            previous = await (await page.request.get(base + "?version_id=" + args.previous_version)).json()
+            assert snapshot["parent_version_id"] == previous["version_id"]
+            old = {concept["id"]: concept for concept in previous["concepts"]}
+            current = {concept["id"]: concept for concept in snapshot["concepts"]}
+            assert old.keys() <= current.keys(), "An update must preserve existing identities"
+            updated = [concept for concept in current.values() if concept.get("is_updated")]
+            assert updated and len(updated) == snapshot["summary"]["updated_concepts"]
+            assert len(current.keys() - old.keys()) == snapshot["summary"]["new_concepts"]
+            for concept_id, before in old.items():
+                after = current[concept_id]
+                assert {ref["snippet_id"] for ref in before["citations"]} <= {ref["snippet_id"] for ref in after["citations"]}
+                if after.get("is_updated"):
+                    assert after["page_md"] != before["page_md"]
+                    assert {ref["snippet_id"] for ref in after["citations"]} - {ref["snippet_id"] for ref in before["citations"]}
+                else:
+                    assert after["page_md"] == before["page_md"]
+                for citation in before["citations"]:
+                    path = f"/sources/{citation['snippet_id']}"
+                    old_source = await (await page.request.get(base + f"/versions/{previous['version_id']}" + path)).json()
+                    current_source = await (await page.request.get(base + f"/versions/{version}" + path)).json()
+                    assert old_source["markdown"] == current_source["markdown"]
         await page.goto(args.url)
         await page.get_by_role("navigation", name="课程", exact=True).get_by_role("button").filter(has_text=args.course).click()
         await page.get_by_role("button", name="知识图谱", exact=True).click()
+        if args.previous_version:
+            await expect(page.locator(".update-summary")).to_contain_text(f"新增 {snapshot['summary']['new_concepts']}")
+            await expect(page.locator(".update-summary")).to_contain_text(f"补充 {snapshot['summary']['updated_concepts']}")
         if args.verify_chapter_scope:
             await expect(page.get_by_role("button", name="章节概览", exact=True)).to_have_attribute("aria-pressed", "true")
             coverage = await (await page.request.get(base + "/coverage?version_id=" + version)).json()
@@ -94,4 +119,5 @@ if __name__ == "__main__":
     parser.add_argument("--course", required=True)
     parser.add_argument("--screenshot")
     parser.add_argument("--verify-chapter-scope", action="store_true", help="同时核查真实多章节范围及跨资料的概念身份")
+    parser.add_argument("--previous-version", help="核查增量整理前后的稳定身份、页面和历史引用")
     asyncio.run(check(parser.parse_args()))

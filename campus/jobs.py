@@ -13,8 +13,9 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from .knowledge import Knowledge
-from .knowledge_models import KnowledgeDraft, PagesDraft, ScopeInput
+from .knowledge_models import KnowledgeDraft, KnowledgeUpdate, PagesDraft, ScopeInput
 from .knowledge_validation import build_snapshot, validate_draft
+from .incremental import build_updated_snapshot, combined_source, validate_update
 from .materials import Materials
 from .model import DeepSeek, ModelError
 from .scopes import resolve_scope
@@ -58,7 +59,7 @@ class Jobs:
                     id TEXT PRIMARY KEY, course_id TEXT NOT NULL REFERENCES courses(id),
                     status TEXT NOT NULL, selection_json TEXT NOT NULL,
                     version_id TEXT, error_code TEXT, error_message TEXT,
-                    owner TEXT, created_at REAL NOT NULL
+                    owner TEXT, created_at REAL NOT NULL, parent_version_id TEXT
                 );
                 CREATE TABLE IF NOT EXISTS task_step (
                     task_id TEXT NOT NULL REFERENCES task(id), name TEXT NOT NULL,
@@ -69,28 +70,27 @@ class Jobs:
                     id INTEGER PRIMARY KEY CHECK(id=1), owner TEXT NOT NULL, expires REAL NOT NULL
                 );
             """)
+            # Serialize the additive migration across API and worker startup.
+            db.execute("BEGIN IMMEDIATE")
+            if "parent_version_id" not in {row["name"] for row in db.execute("PRAGMA table_info(task)")}:
+                db.execute("ALTER TABLE task ADD COLUMN parent_version_id TEXT")
 
     def create(self, course_id: str, selection: ScopeInput) -> dict[str, Any]:
-        """Validate scope now and queue a first-build job without calling a model."""
-        source = resolve_scope(self.materials, course_id, selection)
+        """Pin a base version and queue only previously unorganized source content."""
+        previous = self.knowledge.snapshot(course_id)
+        parent_id = previous["version_id"] if previous else None
+        source = resolve_scope(self.materials, course_id, selection,
+                               organized_ids={f["id"] for f in previous["fragments"]} if previous else None)
         task_id = str(uuid4())
         with self.knowledge.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            published = db.execute(
-                "SELECT 1 FROM knowledge_version WHERE course_id=? AND state='published'",
-                (course_id,),
-            ).fetchone()
-            if published or db.execute(
-                "SELECT 1 FROM course_knowledge WHERE course_id=?", (course_id,)
-            ).fetchone():
-                raise ValueError("课程已有知识，首次整理不能覆盖；追加整理需由任务 08 接入。")
             if db.execute(
                 "SELECT 1 FROM task WHERE course_id=? AND status IN ('queued','running')", (course_id,)
             ).fetchone():
                 raise ValueError("当前课程已有等待或运行中的整理任务。")
             db.execute(
-                "INSERT INTO task(id,course_id,status,selection_json,created_at) VALUES (?,?,'queued',?,?)",
-                (task_id, course_id, json.dumps(selection.model_dump()), time.time()),
+                "INSERT INTO task(id,course_id,status,selection_json,created_at,parent_version_id) VALUES (?,?,'queued',?,?,?)",
+                (task_id, course_id, json.dumps(selection.model_dump()), time.time(), parent_id),
             )
             for step in STEPS:
                 db.execute(
@@ -134,6 +134,7 @@ class Jobs:
             "selection": json.loads(task["selection_json"]),
             "scope": scope,
             "version_id": task["version_id"],
+            "parent_version_id": task["parent_version_id"],
             "error_code": task["error_code"],
             "error_message": task["error_message"],
             "steps": [steps[name] for name in STEPS if name in steps],
@@ -153,13 +154,17 @@ class Jobs:
 
     def retry(self, course_id: str, task_id: str) -> dict[str, Any]:
         """Resume saved successful steps of a failed job, retaining the same identity."""
-        self.get(course_id, task_id)
+        task = self.get(course_id, task_id)
+        if task["status"] != "failed":
+            raise ValueError("只有失败的任务可以重试。")
+        if self.knowledge.current_id(course_id) != task["parent_version_id"]:
+            raise ValueError("课程知识版本已变化，不能沿用旧任务结果；请重新发起整理。")
         with self.knowledge.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             if db.execute(
-                "SELECT 1 FROM course_knowledge WHERE course_id=?", (course_id,)
+                "SELECT 1 FROM task WHERE course_id=? AND status IN ('queued','running')", (course_id,)
             ).fetchone():
-                raise ValueError("课程已有已发布知识，不能重试首次整理任务。")
+                raise ValueError("当前课程已有等待或运行中的整理任务。")
             changed = db.execute(
                 """UPDATE task SET status='queued',error_code=NULL,error_message=NULL,owner=NULL
                 WHERE id=? AND status='failed'""",
@@ -336,6 +341,7 @@ class Jobs:
             task_id,
             snapshot,
             guard=lambda db: self.assert_owner(db, task_id, owner),
+            parent_version_id=task["parent_version_id"],
         )
         with self.knowledge.connect() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -368,6 +374,7 @@ class Jobs:
     ) -> dict[str, Any]:
         """Run one fixed pipeline step; model output is never trusted without checks."""
         source = results["ingest"]
+        previous = self.knowledge.snapshot(task["course_id"], task["parent_version_id"]) if task["parent_version_id"] else None
         if name == "extract":
             result = await self.model_step(
                 "从给定 fragments 抽取具有独立学习意义的知识点和关系。key 为本次抽取内唯一的短标识；"
@@ -379,6 +386,22 @@ class Jobs:
             validate_draft(draft, source)
             return draft.model_dump()
         if name == "integrate":
+            if previous:
+                result = await self.model_step(
+                    "整合本次追加资料与已有知识。只输出新增或有新依据需要补充的知识点；不要重写未受影响的知识。"
+                    "对每个候选比较定义、上下文及原文依据，只有确认同一概念才能填 existing_id，且必须同时引用旧资料和 new_snippet_ids 中的新资料。"
+                    "名称相同不是合并依据；别名仅为同义表达，不能把组成部分、相关术语或子类型当成别名。"
+                    "无法确认时 existing_id=null、identity_status=needs_review，独立保留并在 identity_reason 说明；明确的新概念为 confirmed。"
+                    "key 使用新的短标识，不要用已有 ID 作 key；关系端点可用本次 key 或已有知识点 ID。"
+                    "补充的定义须保留旧知识中仍适用的内容和条件。保留同一概念在不同章节的依据，不把例子单列为知识点。",
+                    {"source": combined_source(previous, source), "new_snippet_ids": [f["id"] for f in source["fragments"]],
+                     "existing_concepts": [{k: c[k] for k in ("id", "name", "aliases", "definition", "chapter_ids", "citations", "status")}
+                                           for c in previous["concepts"]], "draft": results["extract"]},
+                    KnowledgeUpdate.model_json_schema(),
+                )
+                update = KnowledgeUpdate.model_validate(result)
+                validate_update(update, previous, source)
+                return update.model_dump()
             result = await self.model_step(
                 "核对候选定义、上下文与证据，整合同义表达。不能只凭同名合并，也不能把措辞不同直接当冲突。"
                 "同一知识点在多个章节出现时保留一个 key，汇总有引用支持的 chapter_ids 与 citations，不按章节复制知识点。"
@@ -395,6 +418,20 @@ class Jobs:
             validate_draft(draft, source)
             return draft.model_dump()
         if name == "render":
+            if previous:
+                update = KnowledgeUpdate.model_validate(results["integrate"])
+                touched = {c.existing_id for c in update.concepts if c.existing_id}
+                result = await self.model_step(
+                    "为本次新增、补充知识点生成 Markdown 页面，key 与 draft 一一对应。"
+                    "补充页面保留旧页面仍适用的定义、条件和依据，再加入新资料。不要为未受影响的已有知识生成页面。"
+                    "正文使用 [原文](snippet:片段ID) 标记实际引用，citations 列出相同引用。身份待核对时不能宣称与旧知识已合并。",
+                    {"source": combined_source(previous, source), "draft": update.model_dump(),
+                     "existing_pages": [c for c in previous["concepts"] if c["id"] in touched]},
+                    PagesDraft.model_json_schema(),
+                )
+                pages = PagesDraft.model_validate(result)
+                build_updated_snapshot(task["course_id"], task["id"], update, pages, previous, source)
+                return pages.model_dump()
             result = await self.model_step(
                 "为每个知识点生成一个 Markdown 页面，key 必须与知识点一致。正文使用 "
                 "[原文](snippet:片段ID) 标记实际引用，citations 列出相同引用；不得生成自称真实的页码或行号。",
@@ -413,6 +450,9 @@ class Jobs:
             )
             return pages.model_dump()
         if name == "validate":
+            if previous:
+                return build_updated_snapshot(task["course_id"], task["id"], KnowledgeUpdate.model_validate(results["integrate"]),
+                                              PagesDraft.model_validate(results["render"]), previous, source)
             return build_snapshot(
                 task["course_id"],
                 task["id"],

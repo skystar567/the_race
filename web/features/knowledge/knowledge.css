@@ -1,5 +1,11 @@
 .knowledge-workspace {
 margin-top:24px;
+.update-picker{margin-bottom:20px;border:1px solid #dfe5da;border-radius:8px;background:#fdfefa;padding:14px 18px}
+.update-picker summary{cursor:pointer;font-size:12px;color:#3b5e42}
+.update-picker .scope-picker{border:0;padding:18px 0 0;max-height:420px;overflow:auto}
+.update-reading,.update-summary,.concept-change{font-size:12px;line-height:1.8;color:#3f6b3a;padding:10px 14px;background:#edf5e9;border-radius:6px}
+.identity-review{font-size:12px;line-height:1.8;background:#fff2d9;color:#8a6423;padding:12px;border-radius:6px}
+.check-row>span{overflow-wrap:anywhere;min-width:0}
 .graph-views{display:flex;align-items:center;gap:6px;padding:12px 16px;flex-wrap:wrap;border-bottom:1px solid #edf0e7}
 .graph-views button{background:#f0f4ea;color:#4d6246;border-radius:5px;padding:7px 10px;font-size:11px}
 .graph-views button.active{background:#315741;color:white}
@@ -60,7 +66,6 @@ margin-top:24px;
 .chapter-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0 24px}
 .chip-toggle{font-size:10px;padding:5px 9px;border-radius:5px;background:#f2f5ec;color:#7d8b74;border:1px solid transparent;text-align:left}
 .chip-toggle.on{background:#e7f0e0;color:#3f6338;border-color:#cfe0c4}
-.chip-toggle.organized::after{content:" · 已整理";color:#6d8c5c}
 .scope-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid #edf0e7;flex-wrap:wrap}
 .knowledge-body{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:20px;align-items:start}
 .knowledge-body:has(.graph-panel:only-child){grid-template-columns:minmax(0,1fr)}

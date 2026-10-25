@@ -67,7 +67,8 @@ class Knowledge:
         if row is None:
             raise LookupError("已发布知识版本不存在或不属于当前课程。")
         snapshot = json.loads(row["snapshot_json"])
-        return snapshot | {"version_id": row["id"], "course_id": course_id, "state": row["state"]}
+        return snapshot | {"version_id": row["id"], "course_id": course_id, "state": row["state"],
+                           "parent_version_id": row["parent_version_id"]}
 
     def versions(self, course_id: str) -> list[dict[str, Any]]:
         """List version identities and states without exposing snapshots."""
@@ -86,6 +87,7 @@ class Knowledge:
         task_id: str,
         snapshot: dict[str, Any],
         guard: Callable[[sqlite3.Connection], None] | None = None,
+        *, parent_version_id: str | None = None,
     ) -> str:
         """Validate and publish in one transaction; repeating the same task is safe.
 
@@ -107,15 +109,15 @@ class Knowledge:
             current = db.execute(
                 "SELECT current_version_id FROM course_knowledge WHERE course_id=?", (course_id,)
             ).fetchone()
-            if current is not None:
-                raise ValueError("该课程已有已发布知识；追加整理需由任务 08 接入，首次整理不能覆盖旧知识。")
+            if (current[0] if current else None) != parent_version_id:
+                raise ValueError("课程知识版本已变化，本次候选不能覆盖新版本；请重新发起整理。")
             if row is None:
                 version_id = str(uuid4())
                 db.execute(
                     """INSERT INTO knowledge_version
                     (id,course_id,task_id,parent_version_id,state,snapshot_json)
-                    VALUES (?,?,?,NULL,'candidate',?)""",
-                    (version_id, course_id, task_id, payload),
+                    VALUES (?,?,?,?,'candidate',?)""",
+                    (version_id, course_id, task_id, parent_version_id, payload),
                 )
             else:
                 version_id = str(row["id"])
@@ -124,6 +126,9 @@ class Knowledge:
                     (payload, version_id),
                 )
             for concept in snapshot["concepts"]:
+                owner = db.execute("SELECT course_id FROM concept WHERE id=?", (concept["id"],)).fetchone()
+                if owner and owner[0] != course_id:
+                    raise ValueError("知识点标识不属于当前课程。")
                 db.execute(
                     "INSERT OR IGNORE INTO concept(id,course_id) VALUES (?,?)",
                     (concept["id"], course_id),
