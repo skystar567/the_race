@@ -30,7 +30,7 @@ async def check(args):
         await expect(page.locator(".concept-list")).to_contain_text("线程")
 
         await page.locator(".concept-list").get_by_role("button", name="进程", exact=True).click()
-        await expect(page.locator(".concept-panel h2")).to_have_text("进程")
+        await expect(page.locator(".concept-panel-head h2")).to_have_text("进程")
         await expect(page.locator(".concept-page")).to_contain_text("资源分配")
         await expect(page.locator(".concept-chapters")).to_contain_text("2.1 进程的定义")
 
@@ -44,7 +44,7 @@ async def check(args):
         await expect(dialog).to_be_hidden()
 
         await page.locator(".concept-list").get_by_role("button", name="线程", exact=True).click()
-        await expect(page.locator(".concept-panel h2")).to_have_text("线程")
+        await expect(page.locator(".concept-panel-head h2")).to_have_text("线程")
         await expect(page.locator(".concept-relations")).to_contain_text("前置")
         await expect(page.locator(".concept-relations")).to_contain_text("进程")
         await expect(page.locator(".concept-relations")).to_contain_text("系统推断")
@@ -58,10 +58,26 @@ async def check(args):
             await page.locator(".concept-list").get_by_role("button", name="进程", exact=True).click()
             await asyncio.wait_for(arrived.wait(), 10)
             await page.locator(".concept-list").get_by_role("button", name="线程", exact=True).click()
-            await expect(page.locator(".concept-panel h2")).to_have_text("线程")
+            await expect(page.locator(".concept-panel-head h2")).to_have_text("线程")
             await deliver()
             await page.wait_for_timeout(250)  # Allow the delivered response to render.
-            await expect(page.locator(".concept-panel h2")).to_have_text("线程")
+            await expect(page.locator(".concept-panel-head h2")).to_have_text("线程")
+
+        process = next(concept for concept in snapshot["concepts"] if concept["id"] == process_id)
+        pattern = args.url + f"/api/courses/{course_id}/knowledge/versions/*/sources/{process['citations'][0]['snippet_id']}"
+        await page.locator(".concept-list").get_by_role("button", name="进程", exact=True).click()
+        await expect(page.locator(".concept-panel-head h2")).to_have_text("进程")
+        async with delayed_response(page, pattern) as (arrived, deliver):
+            await page.locator(".concept-citations .citation").first.click()
+            await asyncio.wait_for(arrived.wait(), 10)
+            await page.locator(".concept-list").get_by_role("button", name="线程", exact=True).click()
+            await expect(page.locator(".concept-panel-head h2")).to_have_text("线程")
+            await page.locator(".concept-citations .citation").first.click()
+            await expect(dialog).to_contain_text("线程是进程中的一个执行单元")
+            await deliver()
+            await page.wait_for_timeout(250)
+            await expect(dialog).to_contain_text("线程是进程中的一个执行单元")
+            await dialog.get_by_role("button", name="关闭", exact=True).click()
 
         if args.screenshot:
             await page.screenshot(path=args.screenshot, full_page=True)

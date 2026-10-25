@@ -69,12 +69,12 @@ class ScriptedModel:
         return reply
 
 
-async def import_source(data_dir: Path):
+async def import_source(data_dir: Path, markdown: str = SOURCE):
     async with client_for(data_dir) as client:
         course = (await client.post("/api/courses", json={"name": "操作系统"})).json()
         base = f"/api/courses/{course['id']}/materials"
         material = (
-            await client.post(base, params={"filename": "教材.md"}, content=SOURCE.encode())
+            await client.post(base, params={"filename": "教材.md"}, content=markdown.encode())
         ).json()
         detail = (await client.get(f"{base}/{material['id']}")).json()
     chapters = {chapter["title"]: chapter["id"] for chapter in detail["chapters"]}
@@ -158,7 +158,7 @@ async def test_first_build_publishes_version_pinned_knowledge(tmp_path):
     assert task["status"] == "queued"
     assert task["scope"]["fragments"] > 0
 
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     model = ScriptedModel(draft_replies(ingest, chapters))
     jobs = Jobs(tmp_path, model=model)
     assert await jobs.run_once() is True
@@ -256,7 +256,7 @@ async def test_oversized_scope_is_rejected_without_creating_a_task(tmp_path):
 async def test_invalid_citation_never_publishes_knowledge(tmp_path):
     course, material, chapters = await import_source(tmp_path)
     task = await create_task(tmp_path, course["id"], material["id"])
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     replies = draft_replies(ingest, chapters)
     replies["抽取"]["concepts"][0]["citations"][0]["quote"] = "教材中并不存在的句子"
     jobs = Jobs(tmp_path, model=ScriptedModel(replies))
@@ -281,7 +281,7 @@ async def test_invalid_citation_never_publishes_knowledge(tmp_path):
 async def test_empty_or_truncated_output_is_visible_and_unpublished(tmp_path, error, code):
     course, material, chapters = await import_source(tmp_path)
     task = await create_task(tmp_path, course["id"], material["id"])
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     jobs = Jobs(tmp_path, model=ScriptedModel(draft_replies(ingest, chapters), fail_once={"抽取": error}))
     assert await jobs.run_once() is True
     async with client_for(tmp_path) as client:
@@ -293,7 +293,7 @@ async def test_empty_or_truncated_output_is_visible_and_unpublished(tmp_path, er
 async def test_unknown_relation_endpoint_fails_validation(tmp_path):
     course, material, chapters = await import_source(tmp_path)
     task = await create_task(tmp_path, course["id"], material["id"])
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     replies = draft_replies(ingest, chapters)
     replies["抽取"]["relations"][0]["to_key"] = "missing"
     jobs = Jobs(tmp_path, model=ScriptedModel(replies))
@@ -308,7 +308,7 @@ async def test_unknown_relation_endpoint_fails_validation(tmp_path):
 async def test_retry_reuses_completed_model_steps(tmp_path):
     course, material, chapters = await import_source(tmp_path)
     task = await create_task(tmp_path, course["id"], material["id"])
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     model = ScriptedModel(
         draft_replies(ingest, chapters),
         fail_once={"Markdown 页面": ModelError("request", "模型请求被拒绝（400），请检查配置与请求范围。")},
@@ -330,6 +330,44 @@ async def test_retry_reuses_completed_model_steps(tmp_path):
         attempts = {step["name"]: step["attempts"] for step in finished["steps"]}
         assert attempts["extract"] == 1 and attempts["render"] == 2
         assert (await client.get(f"/api/courses/{course['id']}/knowledge")).json()["state"] == "published"
+
+
+async def test_retry_can_regenerate_a_page_with_invalid_evidence(tmp_path):
+    course, material, chapters = await import_source(tmp_path)
+    task = await create_task(tmp_path, course["id"], material["id"])
+    source = resolve_scope(Materials(tmp_path), course["id"], ScopeInput(material_ids=[material["id"]]))
+    replies = draft_replies(source, chapters)
+    valid_pages = json.loads(json.dumps(replies["Markdown 页面"]))
+    replies["Markdown 页面"]["pages"][0]["citations"][0]["quote"] = "不存在的原文"
+    model = ScriptedModel(replies)
+    jobs = Jobs(tmp_path, model=model)
+    await jobs.run_once()
+    assert jobs.get(course["id"], task["id"])["status"] == "failed"
+    assert jobs.knowledge.current_id(course["id"]) is None
+    replies["Markdown 页面"] = valid_pages
+    jobs.retry(course["id"], task["id"])
+    await jobs.run_once()
+    assert jobs.get(course["id"], task["id"])["status"] == "completed"
+    assert jobs.knowledge.current_id(course["id"]) is not None
+
+
+async def test_versioned_source_keeps_reference_definitions_outside_selected_chapters(tmp_path):
+    markdown = SOURCE + "\n![状态图][diagram]\n\n## 附录\n\n[diagram]: images/state.png\n"
+    course, material, chapters = await import_source(tmp_path, markdown)
+    selection = ScopeInput(chapter_ids=[chapters["2.1 进程的定义"], chapters["2.2 线程"]])
+    source = resolve_scope(Materials(tmp_path), course["id"], selection)
+    jobs = Jobs(tmp_path, model=ScriptedModel(draft_replies(source, chapters)))
+    jobs.create(course["id"], selection)
+    await jobs.run_once()
+    snapshot = jobs.knowledge.snapshot(course["id"])
+    image = next(fragment for fragment in snapshot["fragments"] if "![状态图]" in fragment["markdown"])
+    async with client_for(tmp_path) as client:
+        response = await client.get(f"/api/courses/{course['id']}/knowledge/versions/{snapshot['version_id']}/sources/{image['id']}")
+        detail = response.json()
+        assert detail["markdown"] == image["markdown"]
+        assert detail["start_line"] == image["start_line"]
+        assert 'class="missing-image"' in detail["html"]
+        assert "images/state.png" in detail["html"]
 
 
 async def test_one_worker_holds_the_lease_and_only_failed_tasks_retry(tmp_path):
@@ -394,47 +432,49 @@ async def test_failure_cannot_overwrite_a_replacement_worker(tmp_path, monkeypat
 async def test_repeated_publish_never_creates_a_second_version(tmp_path):
     course, material, chapters = await import_source(tmp_path)
     task = await create_task(tmp_path, course["id"], material["id"])
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     model = ScriptedModel(draft_replies(ingest, chapters))
     jobs = Jobs(tmp_path, model=model)
     assert await jobs.run_once() is True
     knowledge = jobs.knowledge.snapshot(course["id"])
     assert knowledge["state"] == "published"
 
-    # Simulate a crash after the pointer switch but before task completion.
-    with jobs.knowledge.connect() as db:
-        db.execute("UPDATE task SET status='running',owner='retry-owner' WHERE id=?", (task["id"],))
-        db.execute("UPDATE task_step SET status='pending' WHERE task_id=? AND name='publish'", (task["id"],))
-    assert await jobs.run_once() is True
-    versions = jobs.knowledge.versions(course["id"])
-    assert len(versions) == 1
-    assert jobs.knowledge.current_id(course["id"]) == knowledge["version_id"]
-    with jobs.knowledge.connect() as db:
-        row = db.execute("SELECT status FROM task WHERE id=?", (task["id"],)).fetchone()
-    assert row["status"] == "completed"
+    again = jobs.knowledge.publish_task(course["id"], task["id"], knowledge)
+    assert again == knowledge["version_id"]
+    assert len(jobs.knowledge.versions(course["id"])) == 1
+    assert jobs.get(course["id"], task["id"])["status"] == "completed"
 
 
-async def test_bookkeeping_error_after_publish_keeps_the_task_completed(tmp_path):
+async def test_bookkeeping_error_after_publish_keeps_the_task_completed(tmp_path, monkeypatch):
     course, material, chapters = await import_source(tmp_path)
     task = await create_task(tmp_path, course["id"], material["id"])
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     jobs = Jobs(tmp_path, model=ScriptedModel(draft_replies(ingest, chapters)))
+    connect = sqlite3.connect
+    interrupted = []
+
+    class FaultyConnection(sqlite3.Connection):
+        def execute(self, sql, parameters=()):
+            if "UPDATE task SET status='completed'" in sql and not interrupted:
+                interrupted.append(True)
+                raise sqlite3.OperationalError("simulated bookkeeping I/O error")
+            return super().execute(sql, parameters)
+
+    def interrupted_connect(*args, **kwargs):
+        return connect(*args, **kwargs, factory=FaultyConnection)
+
+    monkeypatch.setattr(sqlite3, "connect", interrupted_connect)
     assert await jobs.run_once() is True
-    published = jobs.knowledge.current_id(course["id"])
-    with jobs.knowledge.connect() as db:
-        db.execute("UPDATE task SET status='running',owner='test-owner' WHERE id=?", (task["id"],))
-    assert jobs.claim("test-owner") is not None
-    jobs._fail(task["id"], "test-owner", "publish", "internal", "bookkeeping failed")
-    with jobs.knowledge.connect() as db:
-        row = db.execute("SELECT status,version_id FROM task WHERE id=?", (task["id"],)).fetchone()
-    assert row["status"] == "completed"
-    assert row["version_id"] == published
+    assert interrupted
+    state = jobs.get(course["id"], task["id"])
+    assert state["status"] == "completed"
+    assert state["version_id"] == jobs.knowledge.current_id(course["id"])
 
 
 async def test_snapshot_tampering_is_rejected_even_with_validated_flag(tmp_path):
     course, material, chapters = await import_source(tmp_path)
     task = await create_task(tmp_path, course["id"], material["id"])
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     replies = draft_replies(ingest, chapters)
     draft = KnowledgeDraft.model_validate(replies["抽取"])
     pages = PagesDraft.model_validate(replies["Markdown 页面"])
@@ -491,7 +531,7 @@ async def test_publication_rejects_inconsistent_contains_relations(tmp_path, dam
 async def test_versions_and_sources_are_isolated_by_course(tmp_path):
     course, material, chapters = await import_source(tmp_path)
     task = await create_task(tmp_path, course["id"], material["id"])
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     jobs = Jobs(tmp_path, model=ScriptedModel(draft_replies(ingest, chapters)))
     assert await jobs.run_once() is True
     knowledge = jobs.knowledge.snapshot(course["id"])
@@ -521,26 +561,17 @@ async def test_versions_and_sources_are_isolated_by_course(tmp_path):
 async def test_unexpected_step_error_fails_the_task_without_crashing(tmp_path):
     course, material, chapters = await import_source(tmp_path)
     task = await create_task(tmp_path, course["id"], material["id"])
-    ingest = _ingest(tmp_path, task["id"])
+    ingest = resolve_scope(Materials(tmp_path), course["id"], ScopeInput.model_validate(task["selection"]))
     model = ScriptedModel(draft_replies(ingest, chapters))
     jobs = Jobs(tmp_path, model=model)
 
-    async def broken(step, current_task, results):
+    def broken(content):
         raise RuntimeError("unexpected failure")
 
-    jobs.execute_step = broken
+    model.replies["抽取"] = broken
     assert await jobs.run_once() is True
     async with client_for(tmp_path) as client:
         failed = (await client.get(f"/api/courses/{course['id']}/tasks/{task['id']}")).json()
         assert failed["status"] == "failed"
         assert failed["error_code"] == "internal"
         assert (await client.get(f"/api/courses/{course['id']}/knowledge")).json()["state"] == "unpublished"
-
-
-def _ingest(data_dir: Path, task_id: str) -> dict:
-    knowledge = Knowledge(data_dir)
-    with knowledge.connect() as db:
-        row = db.execute(
-            "SELECT result_json FROM task_step WHERE task_id=? AND name='ingest'", (task_id,)
-        ).fetchone()
-    return json.loads(row["result_json"])

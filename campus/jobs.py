@@ -399,6 +399,12 @@ class Jobs:
             expected = {concept["key"] for concept in results["integrate"]["concepts"]}
             if len(pages.pages) != len(expected) or {page.key for page in pages.pages} != expected:
                 raise ValueError("知识页面与知识点不一一对应。")
+            # Do not cache an invalid page as a successful render: retries must
+            # regenerate the producing step instead of reusing bad citations.
+            build_snapshot(
+                task["course_id"], task["id"],
+                KnowledgeDraft.model_validate(results["integrate"]), pages, source,
+            )
             return pages.model_dump()
         if name == "validate":
             return build_snapshot(

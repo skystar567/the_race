@@ -413,6 +413,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ConceptDetail | null>(null);
   const [source, setSource] = useState<SourceDetail | null>(null);
+  const [sourceId, setSourceId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const loadKnowledge = useCallback(async () => {
@@ -532,17 +533,24 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
   }, [courseId, versionId, selectedId]);
 
   function selectConcept(id: string) {
+    setSourceId(null);
     setSelectedId(id);
   }
 
-  async function openSource(snippetId: string) {
-    const snapshot = knowledge;
-    if (!snapshot?.version_id) return;
-    try {
-      setSource(await request<SourceDetail>(sourceUrl(courseId, snapshot.version_id, snippetId)));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '无法读取原文片段。');
-    }
+  useEffect(() => {
+    setSource(null);
+    if (!sourceId || !versionId) return;
+    const controller = new AbortController();
+    request<SourceDetail>(sourceUrl(courseId, versionId, sourceId), { signal: controller.signal })
+      .then(detail => { if (!controller.signal.aborted) setSource(detail); })
+      .catch(cause => {
+        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '无法读取原文片段。');
+      });
+    return () => controller.abort();
+  }, [courseId, versionId, sourceId]);
+
+  function openSource(snippetId: string) {
+    setSourceId(snippetId);
   }
 
   function toggleMaterial(material: MaterialDetail) {
@@ -689,6 +697,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
               concept={selected}
               snapshot={knowledge}
               onClose={() => {
+                setSourceId(null);
                 setSelected(null);
                 setSelectedId(null);
               }}
@@ -699,7 +708,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
         </div>
       )}
 
-      {source && <SourceDialog source={source} onClose={() => setSource(null)} />}
+      {source && <SourceDialog source={source} onClose={() => setSourceId(null)} />}
     </div>
   );
 }
