@@ -516,7 +516,7 @@ export function KnowledgeWorkspace({ courseId, onOpenNotes }: { courseId: string
             {knowledge && <GraphExplorer key={knowledge.version_id} snapshot={knowledge} selectedId={selectedId} onSelectConcept={selectConcept} />}
 
           </div>
-          {asking && knowledge && coverage && <QuestionPanel key={`${courseId}:${knowledge.version_id}:${focus?.id ?? "course"}`}
+          {asking && knowledge && coverage && <QuestionPanel key={`${courseId}:${knowledge.version_id}`}
             courseId={courseId} snapshot={knowledge} coverage={coverage} modelConfigured={Boolean(model?.configured)} focus={focus}
             onClearFocus={() => setFocus(null)} onClose={() => setAsking(false)} onOpenNotes={onOpenNotes} />}
           <div className="concept-panel-holder" hidden={asking}>

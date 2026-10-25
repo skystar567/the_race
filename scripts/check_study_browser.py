@@ -75,15 +75,65 @@ async def check(args):
         zoom = await page.get_by_label("图谱缩放", exact=True).inner_text()
         await page.evaluate("window.studyGraph = document.querySelector('.graph-canvas canvas')")
 
-        # A concept is a focus, not a replacement for the selected course scope.
+        # Focus edits preserve a mixed scope and draft; an in-flight answer keeps its original focus.
+        process_id = next(c["id"] for c in snapshot["concepts"] if c["name"] == "进程")
         await page.get_by_role("button", name="围绕此知识点提问", exact=True).click()
         focus_panel = page.get_by_role("complementary", name="课程问答", exact=True)
+
+        async def select_mixed_scope():
+            await focus_panel.get_by_role("button", name="调整", exact=True).click()
+            await focus_panel.get_by_role("checkbox", name="教材节选（受控样本）.md", exact=True).check()
+            await focus_panel.locator(".scope-group").filter(has_text="未整理页表.md").get_by_role("button", name="页表", exact=True).click()
+            await focus_panel.get_by_role("button", name="调整", exact=True).click()
+            await expect(focus_panel.locator(".qa-scope-row strong")).to_contain_text("1 份资料的全部原文")
+            await expect(focus_panel.locator(".qa-scope-row strong")).to_contain_text("章节：页表")
+            await expect(focus_panel.locator(".scope-selector")).to_have_count(0)
+
+        await select_mixed_scope()
         await focus_panel.get_by_label("课程问题").fill("进程和线程有什么区别？")
-        async with page.expect_request("**/answers/stream") as focused:
+        await focus_panel.get_by_label("清除提问焦点", exact=True).click()
+        await expect(focus_panel.get_by_label("课程问题")).to_have_value("进程和线程有什么区别？")
+        await expect(focus_panel.locator(".qa-scope-row strong")).to_have_text("1 份资料的全部原文；章节：页表")
+        async with page.expect_request("**/answers/stream") as draft_request:
             await focus_panel.get_by_role("button", name="提问", exact=True).click()
-        assert (await focused.value).post_data_json["focus_concept_id"] == next(c["id"] for c in snapshot["concepts"] if c["name"] == "进程")
+        draft_payload = (await draft_request.value).post_data_json
+        assert draft_payload["focus_concept_id"] is None
+        assert len(draft_payload["material_ids"]) == len(draft_payload["chapter_ids"]) == 1
         await expect(focus_panel.locator(".qa-answer .badge.completed")).to_be_visible()
         await expect(focus_panel.locator(".answer-body")).to_contain_text("线程")
+        await expect(focus_panel.locator(".qa-answer-scope")).to_contain_text("1 份资料的全部原文")
+        await expect(focus_panel.locator(".qa-answer-scope")).to_contain_text("页表")
+        await focus_panel.get_by_role("button", name="关闭课程问答").click()
+
+        await page.get_by_role("button", name="围绕此知识点提问", exact=True).click()
+        await select_mixed_scope()
+        await focus_panel.get_by_label("课程问题").fill("进程发布中焦点清除验收")
+        async with page.expect_request("**/answers/stream") as focused:
+            await focus_panel.get_by_role("button", name="提问", exact=True).click()
+        focused_payload = (await focused.value).post_data_json
+        assert focused_payload["focus_concept_id"] == process_id
+        await expect(focus_panel.locator(".answer-body.live")).to_contain_text("进程")
+        await focus_panel.get_by_label("清除提问焦点", exact=True).click()
+        await expect(focus_panel.get_by_label("课程问题")).to_have_value("进程发布中焦点清除验收")
+        await expect(focus_panel.locator(".qa-scope-row strong")).to_have_text("1 份资料的全部原文；章节：页表")
+        await expect(focus_panel.locator(".qa-answer-focus")).to_have_text("本次焦点：进程")
+        await expect(focus_panel.locator(".focus-chip")).to_have_count(0)
+        await expect(focus_panel.locator(".qa-answer .badge.completed")).to_be_visible(timeout=30000)
+        records = await (await page.request.get(base + "/answers")).json()
+        record = next(answer for answer in records if answer["question"] == "进程发布中焦点清除验收")
+        assert record["status"] == "completed" and record["focus_concept_id"] == process_id
+        assert record["scope"]["material_ids"] == focused_payload["material_ids"]
+        assert record["scope"]["chapter_ids"] == focused_payload["chapter_ids"]
+        assert "1 份资料的全部原文" in record["scope"]["label"] and "页表" in record["scope"]["label"]
+        await focus_panel.get_by_label("课程问题").fill("进程清除焦点后续提问")
+        async with page.expect_request("**/answers/stream") as unfocused:
+            await focus_panel.get_by_role("button", name="提问", exact=True).click()
+        next_payload = (await unfocused.value).post_data_json
+        assert next_payload["focus_concept_id"] is None
+        assert next_payload["material_ids"] == focused_payload["material_ids"]
+        assert next_payload["chapter_ids"] == focused_payload["chapter_ids"]
+        await expect(focus_panel.locator(".qa-answer .badge.completed")).to_be_visible()
+        await expect(focus_panel.locator(".qa-answer-focus")).to_have_text("本次焦点：未设置")
         await focus_panel.get_by_role("button", name="关闭课程问答").click()
 
         # Default and explicit scopes include imported but unorganized material.

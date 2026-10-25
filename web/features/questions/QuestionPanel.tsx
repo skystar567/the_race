@@ -82,6 +82,7 @@ export function QuestionPanel({
   const [history, setHistory] = useState<AnswerSummary[]>([]);
   const [answer, setAnswer] = useState<AnswerDetail | null>(null);
   const [started, setStarted] = useState<AnswerStart | null>(null);
+  const [answerFocus, setAnswerFocus] = useState<string | null>(null);
   const [status, setStatus] = useState<AnswerStatus | null>(null);
   const [live, setLive] = useState('');
   const [asking, setAsking] = useState(false);
@@ -96,11 +97,10 @@ export function QuestionPanel({
   const allChapters = groups.flatMap(group => group.chapters);
   const chapterNames = new Map(allChapters.map(chapter => [chapter.id, chapter.title]));
 
-  const pendingLabel = scopeMaterials.length
-    ? `${scopeMaterials.length} 份资料的全部原文`
-    : scopeChapters.length
-      ? scopeChapters.map(id => chapterNames.get(id) ?? id).join('、')
-      : '全部已导入资料';
+  const pendingLabel = [
+    scopeMaterials.length ? `${scopeMaterials.length} 份资料的全部原文` : '',
+    scopeChapters.length ? `章节：${scopeChapters.map(id => chapterNames.get(id) ?? id).join('、')}` : '',
+  ].filter(Boolean).join('；') || '全部已导入资料';
 
   const suggestions = useMemo(() => {
     const names = snapshot.concepts.slice(0, 2).map(concept => concept.name);
@@ -163,6 +163,7 @@ export function QuestionPanel({
     setAnswer(null);
     setStarted(null);
     setStatus('generating');
+    setAnswerFocus(focus?.name ?? null);
     setError('');
     const controller = new AbortController();
     abort.current = controller;
@@ -200,7 +201,9 @@ export function QuestionPanel({
           index = buffer.indexOf('\n\n');
           if (!event) continue;
           if (event.name === 'start') {
-            setStarted(event.data as AnswerStart);
+            const start = event.data as AnswerStart;
+            setStarted(start);
+            setAnswerFocus(start.focus);
           } else if (event.name === 'delta') {
             const text = (event.data as { text?: string }).text ?? '';
             setLive(current => current + text);
@@ -246,6 +249,10 @@ export function QuestionPanel({
       );
       if (controller.signal.aborted || scope.current.signal.aborted) return;
       setAnswer(detail);
+      setAnswerFocus(detail.focus_concept_id
+        ? (detail.version_id === snapshot.version_id ? snapshot.concepts.find(concept => concept.id === detail.focus_concept_id)?.name : null)
+          ?? `历史知识点（${detail.focus_concept_id.slice(0, 8)}）`
+        : null);
       setStatus(detail.status);
       setQuestion(detail.question);
       setStarted(null);
@@ -345,7 +352,7 @@ export function QuestionPanel({
         )}
         {focus && (
           <div className="focus-chip">
-            提问焦点：{focus.name}
+            下次提问焦点：{focus.name}
             <button onClick={onClearFocus} aria-label="清除提问焦点">×</button>
           </div>
         )}
@@ -403,7 +410,8 @@ export function QuestionPanel({
             </span>
             {started?.resolution === 'model' && <span className="muted">模型辅助定位</span>}
           </div>
-          {answer && <p className="form-help">本次范围：{answer.scope.label}</p>}
+          {(answer || started) && <p className="form-help qa-answer-scope">本次范围：{(answer?.scope ?? started?.scope)?.label}</p>}
+          <p className="form-help qa-answer-focus">本次焦点：{answerFocus ?? '未设置'}</p>
           {started && started.missing_image_count > 0 && (
             <div className="message warning">
               引用范围内有 {started.missing_image_count} 处缺失图片，涉及图片的判断不可靠。
