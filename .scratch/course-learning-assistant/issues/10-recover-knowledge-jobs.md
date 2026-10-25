@@ -20,3 +20,7 @@
 与另一项任务并行实现，统一交付分支 `ticket/09-10-identity-and-recovery`，待合入 main。89 项全套测试、类型检查、构建通过；09 真实 Flash 合成小样本五类场景核查通过，10 首次／增量实际 SIGKILL 后重启、步骤复用与不重复发布通过；浏览器核查冲突双方出处、失败重试和恢复提示。规范与规格复审均无剩余发现。
 
 详见[验证记录](../../../docs/verification-ticket-09-10.md)和[接口交接](../../../docs/handoff-ticket-09-10.md)。合成材料不是教材，真实模型结果不提交仓库；密钥、SQLite 和日志仍在忽略目录。`ready-for-agent` 为既有分诊标签，实际完成情况以本清单及验收证据为准。
+
+### 2026-10-25：已合入 main
+
+通过 [PR #6](https://github.com/skystar567/the_race/pull/6) 合并，提交 `588cec5`。后续 B 04／05／06／11 基于该版本审核集成，见[成员交付审核](../../../docs/review-member-deliveries.md)。
