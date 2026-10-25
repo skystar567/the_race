@@ -37,10 +37,26 @@ class KnowledgeDraft(StrictModel):
     relations: list[RelationDraft] = Field(max_length=300)
 
 
+class ConflictClaim(StrictModel):
+    statement: str = Field(min_length=1)
+    context: str = Field(min_length=1)
+    citation: Citation
+
+
+class ConflictDraft(StrictModel):
+    reason: str = Field(min_length=1)
+    claims: list[ConflictClaim] = Field(min_length=2, max_length=8)
+
+
+class ConflictRecord(ConflictDraft):
+    id: str = Field(min_length=1)
+
+
 class ConceptUpdate(ConceptDraft):
     existing_id: str | None = Field(min_length=1)
     identity_status: Literal["confirmed", "needs_review"]
     identity_reason: str = Field(min_length=1)
+    conflicts: list[ConflictDraft] = Field(default_factory=list, max_length=20)
 
 
 class KnowledgeUpdate(StrictModel):

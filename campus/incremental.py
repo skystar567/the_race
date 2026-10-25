@@ -1,11 +1,13 @@
 """Evidence-checked additive updates; unchanged knowledge is retained by code."""
 
+import json
 from typing import Any
+from uuid import UUID, uuid5
 
 from pydantic import Field
 
-from .knowledge_models import ConceptDraft, KnowledgeDraft, KnowledgeUpdate, PageDraft, PagesDraft, RelationDraft
-from .knowledge_validation import build_snapshot, check_citation, validate_draft, validate_snapshot
+from .knowledge_models import ConceptDraft, ConflictRecord, KnowledgeDraft, KnowledgeUpdate, PageDraft, PagesDraft, RelationDraft
+from .knowledge_validation import build_snapshot, check_citation, conflict_evidence_key, validate_conflict, validate_draft, validate_snapshot
 
 
 class _CombinedDraft(KnowledgeDraft):
@@ -59,6 +61,16 @@ def _compose(update: KnowledgeUpdate, previous: dict[str, Any], source: dict[str
             fields["chapter_ids"] = list(dict.fromkeys(before["chapter_ids"] + change.chapter_ids))
             fields["citations"] = list({c["snippet_id"]: c for c in fields["citations"] + before["citations"]}.values())
         concepts[key_map[change.key]] = ConceptDraft(key=key_map[change.key], **fields)
+        existing_conflicts = {conflict_evidence_key(ConflictRecord.model_validate(conflict))
+                             for conflict in old.get(change.existing_id, {}).get("conflicts", [])}
+        for conflict in change.conflicts:
+            conflict_cited = validate_conflict(conflict, evidence, {c["snippet_id"] for c in fields["citations"]})
+            if conflict_evidence_key(conflict) in existing_conflicts:
+                continue
+            if not conflict_cited & new_snippets:
+                raise ValueError("新增冲突必须包含本次追加资料的依据。")
+            if change.existing_id and not conflict_cited & {c["snippet_id"] for c in old[change.existing_id]["citations"]}:
+                raise ValueError("已有知识的新增冲突必须同时保留旧资料依据。")
     relations = {(r["kind"], r["from_id"], r["to_id"]): RelationDraft(
         from_key=r["from_id"], to_key=r["to_id"], kind=r["kind"], origin=r["origin"],
         citation=r["citation"], reason=r["reason"])
@@ -98,19 +110,27 @@ def build_updated_snapshot(
         if concept["id"] in old:
             before = old[concept["id"]]
             concept["status"] = before["status"]
+            concept["conflicts"] = list(before.get("conflicts", []))
             if "identity_reason" in before:
                 concept["identity_reason"] = before["identity_reason"]
     for change in update.concepts:
         concept = by_key[key_map[change.key]]
         concept.update(status=change.identity_status, identity_reason=change.identity_reason,
                        is_updated=bool(change.existing_id))
+        conflicts = {conflict_evidence_key(ConflictRecord.model_validate(conflict)): conflict
+                     for conflict in concept.get("conflicts", [])}
+        for conflict in change.conflicts:
+            evidence_key = conflict_evidence_key(conflict)
+            conflict_id = str(uuid5(UUID(course_id), f"conflict:{concept['id']}:{json.dumps(evidence_key, ensure_ascii=False)}"))
+            conflicts.setdefault(evidence_key, {"id": conflict_id, **conflict.model_dump()})
+        concept["conflicts"] = list(conflicts.values())
     old_relations = {(r["kind"], r["from_id"], r["to_id"]): r["id"] for r in previous["relations"]}
     for relation in snapshot["relations"]:
         relation["id"] = old_relations.get((relation["kind"], relation["from_id"], relation["to_id"]), relation["id"])
     snapshot["summary"] = {
         "new_concepts": sum(c["is_new"] for c in snapshot["concepts"]),
         "updated_concepts": sum(c["is_updated"] for c in snapshot["concepts"]),
-        "conflicts": 0,
+        "conflicts": sum(len(c.get("conflicts", [])) for c in snapshot["concepts"]),
         "needs_review": sum(c["status"] == "needs_review" for c in snapshot["concepts"]),
     }
     validate_snapshot(snapshot)

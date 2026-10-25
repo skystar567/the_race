@@ -5,6 +5,19 @@ margin-top:24px;
 .update-picker .scope-picker{border:0;padding:18px 0 0;max-height:420px;overflow:auto}
 .update-reading,.update-summary,.concept-change{font-size:12px;line-height:1.8;color:#3f6b3a;padding:10px 14px;background:#edf5e9;border-radius:6px}
 .identity-review{font-size:12px;line-height:1.8;background:#fff2d9;color:#8a6423;padding:12px;border-radius:6px}
+.concept-conflicts{margin:14px 0;border:1px solid #e9c9bc;background:#fff8f2;border-radius:8px;padding:12px;overflow-wrap:anywhere}
+.concept-conflicts h3{margin:0;font-size:13px;color:#934c36}
+.conflict-help,.conflict-reason{font-size:11px;line-height:1.8;color:#785b4d}
+.conflict-reason{font-weight:600}
+.conflict-card+.conflict-card{border-top:1px solid #e9c9bc;margin-top:14px;padding-top:8px}
+.conflict-claim{border-left:2px solid #d8ac96;margin-top:12px;padding-left:10px;font-size:12px;line-height:1.8}
+.conflict-claim h4{margin:0;color:#934c36;font-size:11px}
+.conflict-claim p{margin:5px 0}
+.conflict-context{color:#866c5f;font-size:11px}
+.conflict-claim blockquote{margin:8px 0;padding:8px 10px;background:#f5ece4;border-radius:4px;font-size:11px}
+.conflict-source{background:transparent;color:#784a35;padding:0;text-align:left;text-decoration:underline;font-size:11px;line-height:1.8}
+.conflict-source small{display:block;font-size:10px;text-decoration:none}
+.task-recovery{font-size:11px;color:#426346;margin:12px 0 0}
 .check-row>span{overflow-wrap:anywhere;min-width:0}
 .graph-views{display:flex;align-items:center;gap:6px;padding:12px 16px;flex-wrap:wrap;border-bottom:1px solid #edf0e7}
 .graph-views button{background:#f0f4ea;color:#4d6246;border-radius:5px;padding:7px 10px;font-size:11px}
