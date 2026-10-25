@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import katex from 'katex';
+import { QuestionPanel } from './answers';
 import {
   ConceptDetail,
   KnowledgeSnapshot,
@@ -169,17 +170,13 @@ function KnowledgeGraph({
       elements,
       style: GRAPH_STYLE,
       layout: {
-        name: 'cose',
-        animate: false,
-        randomize: false,
-        numIter: 1500,
+        name: 'breadthfirst',
+        directed: true,
+        roots: snapshot.chapters.map(chapter => `chapter:${chapter.id}`),
+        spacingFactor: 1.25,
         padding: 40,
-        nodeDimensionsIncludeLabels: true,
-        nodeOverlap: 16,
-        componentSpacing: 50,
-        nodeRepulsion: () => 11000,
-        idealEdgeLength: () => 130,
-        gravity: 0.4,
+        animate: false,
+        fit: true,
       },
       minZoom: 0.2,
       maxZoom: 2.5,
@@ -426,6 +423,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ConceptDetail | null>(null);
   const [source, setSource] = useState<SourceDetail | null>(null);
+  const [side, setSide] = useState<'concept' | 'qa' | null>(null);
   const [error, setError] = useState('');
 
   const loadKnowledge = useCallback(async () => {
@@ -448,6 +446,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
     setSelected(null);
     setSource(null);
     setSelectedId(null);
+    setSide(null);
     setSources([]);
     setChapters([]);
     setError('');
@@ -535,6 +534,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
     const snapshot = knowledge;
     if (!snapshot?.version_id) return;
     setSelectedId(id);
+    setSide('concept');
     try {
       const detail = await request<ConceptDetail>(conceptUrl(courseId, snapshot.version_id, id));
       setSelected(detail);
@@ -543,11 +543,11 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
     }
   }
 
-  async function openSource(snippetId: string) {
-    const snapshot = knowledge;
-    if (!snapshot?.version_id) return;
+  async function openSource(snippetId: string, versionId?: string) {
+    const version = versionId ?? knowledge?.version_id;
+    if (!version) return;
     try {
-      setSource(await request<SourceDetail>(sourceUrl(courseId, snapshot.version_id, snippetId)));
+      setSource(await request<SourceDetail>(sourceUrl(courseId, version, snippetId)));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '无法读取原文片段。');
     }
@@ -660,7 +660,10 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
                   {knowledge?.concepts.length} 个知识点 · {knowledge?.relations.length} 条关系
                 </span>
               </div>
-              <span className="muted">追加整理由任务 08 接入</span>
+              <div className="graph-actions">
+                <button className={`secondary ${side === 'qa' ? 'active' : ''}`} onClick={() => setSide(side === 'qa' ? null : 'qa')}>课程问答</button>
+                <span className="muted">追加整理由任务 08 接入</span>
+              </div>
             </div>
             {knowledge && (
               <KnowledgeGraph
@@ -692,16 +695,31 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
               <span><i className="line suggested" />虚线 = 系统推断</span>
             </div>
           </div>
-          {selected && knowledge && (
+          {side === 'concept' && selected && knowledge && (
             <ConceptPanel
               concept={selected}
               snapshot={knowledge}
               onClose={() => {
                 setSelected(null);
                 setSelectedId(null);
+                setSide(null);
               }}
-              onOpenSource={snippetId => void openSource(snippetId)}
+              onOpenSource={snippetId => void openSource(snippetId, knowledge.version_id ?? undefined)}
               onSelectConcept={id => void selectConcept(id)}
+            />
+          )}
+          {side === 'qa' && knowledge && (
+            <QuestionPanel
+              courseId={courseId}
+              snapshot={knowledge}
+              modelConfigured={Boolean(model?.configured)}
+              focus={selected ? { id: selected.id, name: selected.name } : null}
+              onClearFocus={() => {
+                setSelected(null);
+                setSelectedId(null);
+              }}
+              onClose={() => setSide(null)}
+              onOpenSource={(snippetId, versionId) => void openSource(snippetId, versionId)}
             />
           )}
         </div>

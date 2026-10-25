@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .materials import Materials
 from .reading import reference_context, render
+from .answers_api import answers_router
 from .knowledge_api import knowledge_router
 
 
@@ -96,6 +97,7 @@ def create_app(data_dir: Path, static_dir: Path | None = None, model=None) -> Fa
                 for fragment in materials.fragments(course_id, material_id, chapter_id)]
 
     app.include_router(knowledge_router(data_dir, model=model))
+    app.include_router(answers_router(data_dir, model=model))
 
     if static_dir is not None:
         static_root = static_dir.resolve()

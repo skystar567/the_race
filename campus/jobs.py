@@ -385,8 +385,9 @@ class Jobs:
             return draft.model_dump()
         if name == "render":
             result = await self.model_step(
-                "为每个知识点生成一个 Markdown 页面，key 必须与知识点一致。正文使用 "
-                "[原文](snippet:片段ID) 标记实际引用，citations 列出相同引用；不得生成自称真实的页码或行号。",
+                "为每个知识点生成一个 Markdown 页面，key 必须与知识点一致。不要输出与知识点名称重复的一级标题，"
+                "正文从定义或要点开始。正文使用 [原文](snippet:片段ID) 标记实际引用，citations 列出相同引用；"
+                "不得生成自称真实的页码或行号。",
                 {"source": source, "draft": results["integrate"]},
                 PagesDraft.model_json_schema(),
             )
