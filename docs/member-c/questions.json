@@ -1,0 +1,473 @@
+{
+  "textbook": "materials/textbooks/计算机操作系统（第四版）.md",
+  "scope": "第 2 章 + 第 3 章 3.5—3.8 节",
+  "note": "验收准备计划，24 题均未在本轮运行；期望不是测试结果。引用存在不等于支持结论，真实运行后须逐题核对。",
+  "questions": [
+    {
+      "id": "Q1",
+      "type": "定义",
+      "question": "什么是前趋图？它为什么不能有循环？",
+      "points": [
+        "有向无循环图 DAG",
+        "结点表示进程/程序段/语句，边表示前趋或偏序",
+        "循环会形成不可能实现的前趋关系"
+      ],
+      "source": "2.1.1",
+      "source_lines": [
+        1058,
+        1074
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q2",
+      "type": "列举",
+      "question": "程序顺序执行有哪三个特征？",
+      "points": [
+        "顺序性",
+        "封闭性",
+        "可再现性"
+      ],
+      "source": "2.1.2",
+      "source_lines": [
+        1098,
+        1102
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q3",
+      "type": "列举",
+      "question": "程序并发执行有哪些特征？",
+      "points": [
+        "间断性",
+        "失去封闭性",
+        "不可再现性"
+      ],
+      "source": "2.1.3",
+      "source_lines": [
+        1128,
+        1138
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q4",
+      "type": "对比",
+      "question": "进程和程序到底有什么区别？",
+      "points": [
+        "在教材所述传统 OS 中，进程是进程实体的运行过程，是资源分配和调度的独立单位",
+        "程序是静态指令集合",
+        "进程有 PCB、动态性、并发性、独立性、异步性"
+      ],
+      "source": "2.2.1",
+      "source_lines": [
+        1146,
+        1172
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q5",
+      "type": "定义",
+      "question": "进程有哪三种基本状态？它们之间怎么转换？",
+      "points": [
+        "就绪/执行/阻塞",
+        "就绪→执行、执行→就绪、执行→阻塞、阻塞→就绪",
+        "阻塞也称等待/封锁"
+      ],
+      "source": "2.2.2/2.3.4",
+      "source_lines": [
+        1176,
+        1193
+      ],
+      "expectation": "supported",
+      "execution_status": "planned",
+      "additional_source_lines": [
+        [
+          1458,
+          1460
+        ]
+      ],
+      "review_note": "原范围未以文字给出阻塞→就绪；图 2-5 图片未导入。补充 1458—1460 的唤醒原语文字依据，不把图题当图像内容。"
+    },
+    {
+      "id": "Q6",
+      "type": "推理",
+      "question": "就绪态的进程能不能直接变成阻塞态？",
+      "points": [
+        "不能直接",
+        "阻塞由正在执行的进程因事件转入",
+        "就绪需先被调度进入执行"
+      ],
+      "source": "2.2.2",
+      "source_lines": [
+        1184,
+        1190
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q7",
+      "type": "定义",
+      "question": "PCB 的作用是什么？至少说出三项。",
+      "points": [
+        "进程存在的唯一标志",
+        "保存 CPU 现场，支持间断运行",
+        "提供进程管理与调度信息",
+        "支持同步与通信"
+      ],
+      "source": "2.2.4",
+      "source_lines": [
+        1273,
+        1287
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q8",
+      "type": "定义",
+      "question": "为什么要在操作系统中引入线程？",
+      "points": [
+        "把资源拥有与调度分派属性分开",
+        "线程作为调度分派单位",
+        "减少创建/撤销/切换开销",
+        "适应多处理机"
+      ],
+      "source": "2.7.1",
+      "source_lines": [
+        2442,
+        2466
+      ],
+      "expectation": "supported",
+      "execution_status": "planned",
+      "review_note": "原范围止于 2464，遗漏“适应多处理机”的实际依据 2466；本次补齐。"
+    },
+    {
+      "id": "Q9",
+      "type": "对比",
+      "question": "线程和进程有什么区别？",
+      "points": [
+        "调度单位不同",
+        "同进程线程共享地址空间",
+        "进程拥有资源，线程只有少量必需资源",
+        "线程切换/创建开销更小",
+        "多线程可分配到多处理机"
+      ],
+      "source": "2.7.2",
+      "source_lines": [
+        2468,
+        2498
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q10",
+      "type": "别名",
+      "question": "“轻型进程（Light-Weight Process）”和“进程元”指的是什么？",
+      "points": [
+        "指线程 Light-Weight Process",
+        "传统进程称为重型进程"
+      ],
+      "source": "2.7.2",
+      "source_lines": [
+        2470,
+        2470
+      ],
+      "expectation": "supported",
+      "execution_status": "planned",
+      "review_note": "原题的“轻量级进程”改为教材 2470 的原词“轻型进程”；别名扩展须另有依据。"
+    },
+    {
+      "id": "Q11",
+      "type": "跨知识点",
+      "question": "同一进程内的线程切换为什么通常比进程切换开销小？",
+      "points": [
+        "只保存/设置少量寄存器",
+        "同一进程内线程共享地址空间，不引起进程切换",
+        "进程切换涉及上下文和资源",
+        "线程有 TCB、进程有 PCB",
+        "不同进程之间的线程切换仍会引起进程切换；不要无条件推广"
+      ],
+      "source": "2.7.2/2.7.3",
+      "source_lines": [
+        2474,
+        2516
+      ],
+      "expectation": "supported",
+      "execution_status": "planned",
+      "review_note": "按 2474 限定为同一进程内，避免把跨进程线程切换也解释为不发生进程切换。"
+    },
+    {
+      "id": "Q12",
+      "type": "定义",
+      "question": "什么是死锁？",
+      "points": [
+        "一组进程中每个进程都在等待仅由该组其他进程才能引发的事件",
+        "无限期等待，无法释放资源"
+      ],
+      "source": "3.5.3",
+      "source_lines": [
+        3308,
+        3312
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q13",
+      "type": "定义",
+      "question": "产生死锁的四个必要条件是什么？",
+      "points": [
+        "互斥条件",
+        "请求和保持条件",
+        "不可抢占条件",
+        "循环等待条件",
+        "必须同时具备"
+      ],
+      "source": "3.5.3",
+      "source_lines": [
+        3314,
+        3326
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q14",
+      "type": "列举",
+      "question": "处理死锁有哪四种方法？",
+      "points": [
+        "预防",
+        "避免",
+        "检测",
+        "解除",
+        "防范程度递减、资源利用率递增"
+      ],
+      "source": "3.5.3",
+      "source_lines": [
+        3328,
+        3340
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q15",
+      "type": "对比",
+      "question": "死锁预防和死锁避免有什么区别？",
+      "points": [
+        "预防破坏必要条件",
+        "避免在动态分配中防止进入不安全状态",
+        "互斥条件通常不能破坏"
+      ],
+      "source": "3.6/3.7",
+      "source_lines": [
+        3344,
+        3398
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q16",
+      "type": "机制",
+      "question": "破坏“请求和保持”条件有哪两种协议？第一种有什么缺点，第二种如何改进？",
+      "points": [
+        "一次性申请全部资源",
+        "运行中释放用完资源再申请",
+        "协议一资源浪费/易饥饿",
+        "第二种协议可提高设备利用率、减少饥饿概率；不能编造教材未列出的第二协议缺点"
+      ],
+      "source": "3.6.1",
+      "source_lines": [
+        3348,
+        3368
+      ],
+      "expectation": "supported",
+      "execution_status": "planned",
+      "review_note": "原题要求“两种协议各有什么缺点”，3356—3368 只明确第一协议缺点和第二协议改进；本次缩小提问。"
+    },
+    {
+      "id": "Q17",
+      "type": "推理",
+      "question": "什么是安全状态和安全序列？不安全状态一定会死锁吗？",
+      "points": [
+        "存在安全序列",
+        "不安全状态可能进入死锁但非必然",
+        "系统保持安全状态时不会进入死锁；后续不安全的分配可能改变状态"
+      ],
+      "source": "3.7.1",
+      "source_lines": [
+        3400,
+        3420
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q18",
+      "type": "机制",
+      "question": "银行家算法里 Need 是怎么来的？判断一次请求要经过哪些步骤？",
+      "points": [
+        "Need=Max-Allocation",
+        "Request≤Need、Request≤Available",
+        "试探分配并执行安全性算法",
+        "不安全则回滚"
+      ],
+      "source": "3.7.2",
+      "source_lines": [
+        3430,
+        3496
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q19",
+      "type": "定义/机制",
+      "question": "资源分配图怎么表示请求和分配？死锁定理说什么？",
+      "points": [
+        "进程圆圈/资源方框，请求边 P→R，分配边 R→P",
+        "可完全简化",
+        "死锁当且仅当资源分配图不可完全简化"
+      ],
+      "source": "3.8.1",
+      "source_lines": [
+        3557,
+        3583
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q20",
+      "type": "列举",
+      "question": "检测到死锁后有哪些解除方法？",
+      "points": [
+        "抢占资源",
+        "终止/撤销进程，全部或逐个",
+        "按代价选择终止对象"
+      ],
+      "source": "3.8.2",
+      "source_lines": [
+        3610,
+        3645
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    },
+    {
+      "id": "Q21",
+      "type": "资料不足",
+      "question": "死锁和饥饿有什么区别？",
+      "points": [
+        "依据 3310—3312 解释死锁进程间相互等待",
+        "依据 3362 的实例说明个别资源长期被占用可使进程迟迟不能开始",
+        "允许基于所引资料作有限对比并标明推理；不能编造范围内没有给出的完整形式化对比"
+      ],
+      "source": "3.5.3/3.6.1",
+      "source_lines": [
+        3310,
+        3362
+      ],
+      "expectation": "partially_supported",
+      "execution_status": "planned",
+      "review_note": "原 insufficient 过于绝对：3362 已解释饥饿实例，足够支持有限对比。该题改为部分可答边界题，不以一律拒答为通过。"
+    },
+    {
+      "id": "Q22",
+      "type": "缺图",
+      "question": "图 3-14 中曲线④具体是按什么顺序推进的？",
+      "points": [
+        "可答 P1 保持 R1、P2 保持 R2，继续推进进入不安全区",
+        "精确顺序只能从图读取；图未导入，必须说明缺失"
+      ],
+      "source": "3.5.2/图3-14",
+      "source_lines": [
+        3293,
+        3304
+      ],
+      "expectation": "insufficient",
+      "execution_status": "planned",
+      "review_note": "3293—3304 可支持正文中的资源占有/请求示例；对应图片文件在仓库不存在。不能猜测图上曲线的精确顺序。"
+    },
+    {
+      "id": "Q23",
+      "type": "范围外",
+      "question": "先来先服务（FCFS）和短作业优先（SJF）应该怎么选？",
+      "points": [
+        "属于 3.1—3.4，不在本次演示整理范围",
+        "应说明未整理/不在范围，不能把原文当已发布知识"
+      ],
+      "source": "3.2.3；计划整理范围之外",
+      "source_lines": [
+        2837,
+        2865
+      ],
+      "expectation": "out_of_scope",
+      "execution_status": "planned",
+      "review_note": "范围外预期仅在实际发布范围确为第 2 章 + 3.5—3.8 时成立。全书已导入不等于 3.2.3 已整理；若运行时扩大范围须重定预期。"
+    },
+    {
+      "id": "Q24",
+      "type": "别名",
+      "question": "阻塞状态、等待状态、封锁状态是同一种状态吗？",
+      "points": [
+        "是同一状态的三种叫法",
+        "不要与挂起（静止状态）混淆"
+      ],
+      "source": "2.2.2/2.2.3",
+      "source_lines": [
+        1184,
+        1216
+      ],
+      "expectation": "supported",
+      "execution_status": "planned"
+    }
+  ],
+  "status": "planned_not_executed",
+  "provenance": {
+    "author": "成员 C；本轮审核修订题目边界与行号",
+    "commit": "2924f0961e94d8a22bbdafc554d601df1665d83c",
+    "url": "https://github.com/skystar567/the_race/blob/2924f0961e94d8a22bbdafc554d601df1665d83c/docs/member-c/questions.json"
+  },
+  "source_check": {
+    "date": "2026-10-25",
+    "textbook_sha256": "7495231830d04c26eb57f51286b7fe209f88102ca3912abc8b95f87b8ca69d94",
+    "textbook_line_count": 11433,
+    "original_ranges_checked": 24,
+    "current_ranges_checked": 24,
+    "result": "所有主范围及补充范围均存在；仅进行静态原文抽查，无模型调用、无产品验收",
+    "sampled_questions": [
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4",
+      "Q5",
+      "Q6",
+      "Q7",
+      "Q8",
+      "Q10",
+      "Q11",
+      "Q13",
+      "Q14",
+      "Q16",
+      "Q17",
+      "Q18",
+      "Q19",
+      "Q20",
+      "Q21",
+      "Q22",
+      "Q23",
+      "Q24"
+    ]
+  }
+}

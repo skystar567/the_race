@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { request, type Course } from '../api';
 import { MaterialsWorkspace } from '../features/materials/MaterialsWorkspace';
+import { NotesWorkspace } from '../features/notes/NotesWorkspace';
 import { KnowledgeWorkspace } from '../features/knowledge/KnowledgeWorkspace';
 import { Icon } from '../shared/Icon';
 import { Modal } from '../shared/Modal';
@@ -52,7 +53,19 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const course = courses.find(item => item.id === courseId);
-  const [workspace, setWorkspace] = useState<'materials' | 'knowledge'>('materials');
+  const [workspace, setWorkspace] = useState<'materials' | 'knowledge' | 'notes'>('materials');
+  const [notesOpened, setNotesOpened] = useState(false);
+  const [knowledgeOpened, setKnowledgeOpened] = useState(false);
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [dirtyNote, setDirtyNote] = useState(false);
+  function chooseCourse(id: string) {
+    if (id === courseId) return;
+    if (dirtyNote && !window.confirm('当前笔记有未保存的修改，确定丢弃草稿并切换课程吗？')) return;
+    setCourseId(id); setDirtyNote(false); setSelectedNoteId(null);
+  }
+  function openNotes(id?: string) {
+    setSelectedNoteId(id ?? null); setNotesOpened(true); setWorkspace('notes');
+  }
   const syncMaterialCount = useCallback((targetCourse: string, count: number) => {
     setCourses(items => items.map(item => item.id === targetCourse ? { ...item, material_count: count } : item));
   }, []);
@@ -81,14 +94,14 @@ export function App() {
         <div className="sidebar-label">我的课程 <span>{courses.length.toString().padStart(2, '0')}</span></div>
         <nav className="course-list" aria-label="课程">
           {courses.map((item, index) => (
-            <button key={item.id} className={`course-button ${item.id === courseId ? 'active' : ''}`} onClick={() => setCourseId(item.id)} aria-current={item.id === courseId ? 'page' : undefined}>
+            <button key={item.id} className={`course-button ${item.id === courseId ? 'active' : ''}`} onClick={() => chooseCourse(item.id)} aria-current={item.id === courseId ? 'page' : undefined}>
               <span className="course-monogram">{String(index + 1).padStart(2, '0')}</span>
               <span className="course-name">{item.name}<small>{item.material_count} 份学习资料</small></span>
               <Icon name="arrow" size={14} />
             </button>
           ))}
         </nav>
-        <button className="new-course" onClick={() => setCreating(true)}><Icon name="plus" size={17} />新建课程</button>
+        <button className="new-course" onClick={() => { if (!dirtyNote || window.confirm('当前笔记有未保存的修改，确定新建并切换课程吗？')) setCreating(true); }}><Icon name="plus" size={17} />新建课程</button>
         <div className="sidebar-footer"><span className="status-dot" />本机学习空间<p>资料保存在这台电脑，<br />随时回来继续阅读。</p></div>
       </aside>
       <main>
@@ -96,21 +109,25 @@ export function App() {
           <span>我的学习空间 <span className="breadcrumb-slash">/</span> <strong>{course?.name ?? '欢迎'}</strong></span>
           {course && <nav className="workspace-tabs" aria-label="课程工作区">
             <button className={workspace === 'materials' ? 'active' : ''} onClick={() => setWorkspace('materials')}>资料阅读</button>
-            <button className={workspace === 'knowledge' ? 'active' : ''} onClick={() => setWorkspace('knowledge')}>知识图谱</button>
+            <button className={workspace === 'knowledge' ? 'active' : ''} onClick={() => { setKnowledgeOpened(true); setWorkspace('knowledge'); }}>知识图谱</button>
+            <button className={workspace === 'notes' ? 'active' : ''} onClick={() => openNotes()}>个人笔记</button>
           </nav>}
           <span className="local-badge">LOCAL · 本机</span>
         </header>
         <div className="workspace">
           {error && <div className="message error" role="alert">{error}</div>}
           {loading ? <div className="empty-state" role="status">正在读取学习空间…</div> : course ? (
-            workspace === 'knowledge' ? <>
-              <div className="page-heading"><div><div className="eyebrow">COURSE KNOWLEDGE</div><h1>{course.name}</h1><p>从教材中整理知识点，沿着关系理解课程，随时回到原文核对。</p></div></div>
-              <KnowledgeWorkspace key={course.id} courseId={course.id} />
-            </> : <MaterialsWorkspace
-              key={course.id}
-              course={course}
-              onMaterialCountChange={syncMaterialCount}
-            />
+            <>
+              {knowledgeOpened && <div hidden={workspace !== 'knowledge'}>
+                <div className="page-heading"><div><div className="eyebrow">COURSE KNOWLEDGE</div><h1>{course.name}</h1><p>沿着关系理解课程，回到原文核对，也可以提问并记录自己的理解。</p></div></div>
+                <KnowledgeWorkspace key={course.id} courseId={course.id} onOpenNotes={openNotes} />
+              </div>}
+              {notesOpened && <div hidden={workspace !== 'notes'}>
+                <div className="page-heading"><div><div className="eyebrow">PERSONAL NOTES</div><h1>{course.name} · 个人笔记</h1><p>保存自己的理解，保留原文依据与模型补充标记。</p></div></div>
+                <NotesWorkspace key={course.id} courseId={course.id} selectedNoteId={selectedNoteId} active={workspace === 'notes'} onDirtyChange={setDirtyNote} />
+              </div>}
+              {workspace === 'materials' && <MaterialsWorkspace key={course.id} course={course} onMaterialCountChange={syncMaterialCount} />}
+            </>
           ) : (
             <>
               <div className="page-heading"><div><div className="eyebrow">LEARNING MATERIALS</div><h1>从一门课程开始</h1><p>建立自己的学习空间，把散落的资料放在一起。</p></div></div>
@@ -119,7 +136,7 @@ export function App() {
                 <div className="eyebrow">A PLACE FOR YOUR KNOWLEDGE</div>
                 <h2>为这学期的学习留一个位置</h2>
                 <p>每门课程独立保存资料，从操作系统或你正在学习的课程开始。</p>
-                <button className="primary" onClick={() => setCreating(true)}><Icon name="plus" size={18} />创建第一门课程</button>
+                <button className="primary" onClick={() => { if (!dirtyNote || window.confirm('当前笔记有未保存的修改，确定新建并切换课程吗？')) setCreating(true); }}><Icon name="plus" size={18} />创建第一门课程</button>
                 <div className="empty-footnote">支持 UTF-8 Markdown · 单份最大 20 MB</div>
               </section>
             </>
@@ -128,7 +145,7 @@ export function App() {
       </main>
       {creating && <CreateCourseDialog onClose={() => setCreating(false)} onCreated={created => {
         setCourses(items => [...items, created]);
-        setCourseId(created.id);
+        setCourseId(created.id); setDirtyNote(false); setSelectedNoteId(null);
         setWorkspace('materials');
         setCreating(false);
       }} />}

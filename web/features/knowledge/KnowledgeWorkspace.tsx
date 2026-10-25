@@ -17,6 +17,8 @@ import {
   tasksUrl,
 } from '../../api';
 import './knowledge.css';
+import { QuestionPanel } from '../questions/QuestionPanel';
+import { ConceptStudyActions } from '../notes/ConceptStudyActions';
 
 const KIND_LABEL = { contains: '包含', precedes: '前置', contrasts: '对比' } as const;
 const STATUS_LABEL: Record<Task['status'], string> = {
@@ -99,7 +101,9 @@ function ConceptPanel({
   onClose,
   onOpenSource,
   onSelectConcept,
+  courseId, modelConfigured, onAsk, onOpenNotes,
 }: {
+  courseId: string; modelConfigured: boolean; onAsk: () => void; onOpenNotes: (id: string) => void;
   concept: ConceptDetail;
   snapshot: KnowledgeSnapshot;
   onClose: () => void;
@@ -138,6 +142,8 @@ function ConceptPanel({
           ×
         </button>
       </div>
+      <ConceptStudyActions key={`${concept.version_id}:${concept.id}`} courseId={courseId} conceptId={concept.id} versionId={concept.version_id}
+        modelConfigured={modelConfigured} onAsk={onAsk} onOpenNotes={onOpenNotes} />
       <div className="concept-chapters">
         {chapters.map(chapter => (
           <span className="chip" key={chapter.id}>
@@ -258,7 +264,9 @@ function TaskPanel({ task, onRetry, busy }: { task: Task; onRetry: () => void; b
   );
 }
 
-export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
+export function KnowledgeWorkspace({ courseId, onOpenNotes }: { courseId: string; onOpenNotes: (id: string) => void }) {
+  const [asking, setAsking] = useState(false);
+  const [focus, setFocus] = useState<{ id: string; name: string } | null>(null);
   const [knowledge, setKnowledge] = useState<KnowledgeSnapshot | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [model, setModel] = useState<ModelStatus | null>(null);
@@ -291,6 +299,10 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
       setSource(null);
       setSourceId(null);
       setSelectedId(id => snapshot.concepts.some(concept => concept.id === id) ? id : null);
+      setFocus(current => {
+        const concept = snapshot.concepts.find(item => item.id === current?.id);
+        return concept ? { id: concept.id, name: concept.name } : null;
+      });
     }
     displayedVersion.current = snapshot.version_id;
     setKnowledge(snapshot);
@@ -420,6 +432,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
   }, [courseId, versionId, selectedId]);
 
   function selectConcept(id: string) {
+    setAsking(false);
     setError('');
     setSourceId(null);
     setSelectedId(id);
@@ -497,13 +510,20 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
                   {knowledge?.concepts.length} 个知识点 · {knowledge?.relations.length} 条关系
                 </span>
               </div>
-              <button className="secondary" disabled={busy} onClick={() => void refreshKnowledge()}>{refreshing ? '正在刷新…' : '刷新知识'}</button>
+              <div className="study-toolbar-actions"><button className="secondary" onClick={() => { setFocus(null); setAsking(true); }}>课程提问</button>
+              <button className="secondary" disabled={busy} onClick={() => void refreshKnowledge()}>{refreshing ? '正在刷新…' : '刷新知识'}</button></div>
             </div>
             {knowledge && <GraphExplorer key={knowledge.version_id} snapshot={knowledge} selectedId={selectedId} onSelectConcept={selectConcept} />}
 
           </div>
+          {asking && knowledge && coverage && <QuestionPanel key={`${courseId}:${knowledge.version_id}`}
+            courseId={courseId} snapshot={knowledge} coverage={coverage} modelConfigured={Boolean(model?.configured)} focus={focus}
+            onClearFocus={() => setFocus(null)} onClose={() => setAsking(false)} onOpenNotes={onOpenNotes} />}
+          <div className="concept-panel-holder" hidden={asking}>
           {selected && knowledge && selected.version_id === knowledge.version_id && (
             <ConceptPanel
+              courseId={courseId} modelConfigured={Boolean(model?.configured)}
+              onAsk={() => { setFocus({ id: selected.id, name: selected.name }); setAsking(true); }} onOpenNotes={onOpenNotes}
               concept={selected}
               snapshot={knowledge}
               onClose={() => {
@@ -515,6 +535,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
               onSelectConcept={id => void selectConcept(id)}
             />
           )}
+          </div>
         </div>
       )}
 
