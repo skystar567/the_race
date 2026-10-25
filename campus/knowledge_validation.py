@@ -138,7 +138,7 @@ def build_snapshot(
         for chapter_id in dict.fromkeys(concept.chapter_ids):
             evidence = citation_inside_chapter(concept.citations, chapters[chapter_id], fragments)
             relations.append({
-                "id": str(uuid5(namespace, f"contains:{chapter_id}:{concept.key}")),
+                "id": str(uuid5(namespace, f"contains:{chapter_id}:{identities[concept.key]}")),
                 "kind": "contains",
                 "from_type": "chapter",
                 "from_id": chapter_id,
@@ -156,7 +156,7 @@ def build_snapshot(
             continue
         seen.add(key)
         relations.append({
-            "id": str(uuid5(namespace, f"relation:{':'.join(key)}")),
+            "id": str(uuid5(namespace, f"relation:{relation.kind}:{identities[relation.from_key]}:{identities[relation.to_key]}")),
             "kind": relation.kind,
             "from_type": "concept",
             "from_id": identities[relation.from_key],

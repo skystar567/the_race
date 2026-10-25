@@ -210,3 +210,26 @@ async def test_updates_reject_foreign_material_and_identity(tmp_path):
     assert jobs.get(course["id"], task["id"])["status"] == "failed"
     assert jobs.knowledge.snapshot(course["id"]) == previous
     assert jobs.knowledge.snapshot(other["id"]) == foreign
+
+
+async def test_consecutive_updates_can_reuse_model_keys_for_independent_concepts(tmp_path):
+    course, _, previous = await initial_course(tmp_path)
+    for _ in range(2):
+        material, _, replies = add_supplement(tmp_path, course["id"], previous)
+        for concept in replies["整合"]["concepts"]:
+            concept.update(existing_id=None, identity_status="needs_review",
+                           identity_reason="同名但语境不足，独立保留待核对。")
+        replies["整合"]["relations"] = [{"from_key": "process", "to_key": "pcb", "kind": "precedes",
+            "origin": "suggested", "citation": None, "reason": "两个独立候选之间的推断关系。"}]
+        jobs = Jobs(tmp_path, model=ScriptedModel(replies))
+        task = jobs.create(course["id"], ScopeInput(material_ids=[material["id"]]))
+        await jobs.run_once()
+        done = jobs.get(course["id"], task["id"])
+        assert done["status"] == "completed", done["error_message"]
+        current = jobs.knowledge.snapshot(course["id"])
+        assert len(current["concepts"]) == len(previous["concepts"]) + 2
+        old_relations = {relation["id"]: relation for relation in previous["relations"]}
+        new_relations = {relation["id"]: relation for relation in current["relations"]}
+        assert all(new_relations.get(rid) == relation for rid, relation in old_relations.items())
+        assert len(new_relations) == len(current["relations"])
+        previous = current

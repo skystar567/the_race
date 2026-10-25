@@ -445,7 +445,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
       {published && knowledge?.parent_version_id && knowledge.summary && <p className="update-summary" role="status">
         当前版本更新：新增 {knowledge.summary.new_concepts} · 补充 {knowledge.summary.updated_concepts} · 待核对 {knowledge.summary.needs_review ?? 0}
       </p>}
-      {published && knowledge?.version_id && <CoveragePanel courseId={courseId} versionId={knowledge.version_id} />}
+      {published && coverage && <CoveragePanel coverage={coverage} />}
 
       {!published ? (
         <section className="unpublished">

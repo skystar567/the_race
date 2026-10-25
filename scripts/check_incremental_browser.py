@@ -53,6 +53,17 @@ async def check(args):
         await expect(page.locator(".task-panel.failed")).to_contain_text("原有知识")
         await expect(page.locator(".concept-panel-head h2")).to_have_text("运行过程")
         await expect(page.get_by_role("checkbox", name="未选.md", exact=False)).to_be_enabled()
+        # Another window can import sources without changing the knowledge version.
+        courses = await (await page.request.get(args.url + "/api/courses")).json()
+        course = next(c for c in courses if c["name"] == "操作系统（受控验收样本）")
+        response = await page.request.post(args.url + f"/api/courses/{course['id']}/materials?filename=later.md",
+                                           data="# 新导入\n\n来自另一窗口，尚未整理。\n".encode())
+        assert response.status == 201
+        await page.get_by_role("button", name="刷新知识", exact=True).click()
+        await expect(page.get_by_role("checkbox", name="later.md", exact=False)).to_be_enabled()
+        await page.locator(".coverage-panel summary").click()
+        await expect(page.locator(".coverage-material").filter(has_text="later.md")).to_contain_text("尚未整理")
+        await page.locator(".coverage-panel summary").click()
         if args.screenshot:
             await page.screenshot(path=args.screenshot, full_page=True)
         await page.set_viewport_size({"width": 390, "height": 844})
