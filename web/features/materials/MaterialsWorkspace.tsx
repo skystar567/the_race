@@ -5,9 +5,9 @@ import { Modal } from '../../shared/Modal';
 import { ReadingContent } from './ReadingContent';
 import './materials.css';
 
-export function MaterialsWorkspace({ course, onMaterialImported }: {
+export function MaterialsWorkspace({ course, onMaterialCountChange }: {
   course: Course;
-  onMaterialImported: (courseId: string) => void;
+  onMaterialCountChange: (courseId: string, count: number) => void;
 }) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [materialId, setMaterialId] = useState('');
@@ -34,13 +34,14 @@ export function MaterialsWorkspace({ course, onMaterialImported }: {
       if (controller.signal.aborted) return;
       setMaterials(items);
       setMaterialId(items[0]?.id ?? '');
+      onMaterialCountChange(course.id, items.length);
     }).catch(error => { if (!controller.signal.aborted) report(error); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => {
       controller.abort();
       uploadController.current?.abort();
     };
-  }, [course.id]);
+  }, [course.id, onMaterialCountChange]);
 
   useEffect(() => {
     setDetail(null);
@@ -84,7 +85,7 @@ export function MaterialsWorkspace({ course, onMaterialImported }: {
       if (controller.signal.aborted) return;
       setMaterials(items => [...items, result]);
       setMaterialId(result.id);
-      onMaterialImported(course.id);
+      onMaterialCountChange(course.id, materials.length + 1);
       setNotice('资料已保存，可以按章节阅读原文。当前尚未进行知识整理。');
     } catch (error) {
       if (!controller.signal.aborted) report(error);

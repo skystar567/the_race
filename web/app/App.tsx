@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { request, type Course } from '../api';
 import { MaterialsWorkspace } from '../features/materials/MaterialsWorkspace';
 import { Icon } from '../shared/Icon';
@@ -51,6 +51,9 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const course = courses.find(item => item.id === courseId);
+  const syncMaterialCount = useCallback((targetCourse: string, count: number) => {
+    setCourses(items => items.map(item => item.id === targetCourse ? { ...item, material_count: count } : item));
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -94,7 +97,7 @@ export function App() {
             <MaterialsWorkspace
               key={course.id}
               course={course}
-              onMaterialImported={targetCourse => setCourses(items => items.map(item => item.id === targetCourse ? { ...item, material_count: item.material_count + 1 } : item))}
+              onMaterialCountChange={syncMaterialCount}
             />
           ) : (
             <>
