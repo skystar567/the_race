@@ -1,6 +1,6 @@
 # 任务 03：章节范围与图谱交接
 
-实现位于 `ticket/03-chapter-scope-navigation`。验证结果见 [任务 03 验证记录](verification-ticket-03.md)。本任务沿用任务 02 的知识快照、知识点和来源接口，不迁移数据库；首次整理仍只创建一个已发布版本，追加整理由任务 08 接入。
+实现位于 `ticket/03-chapter-scope-navigation`。验证结果见 [任务 03 验证记录](verification-ticket-03.md)。本任务沿用任务 02 的知识快照、知识点和来源接口，不迁移数据库。当时仅支持首次整理；追加整理现由[任务 08](handoff-ticket-08.md)接入，本文的读取契约继续有效。
 
 ## 整理范围接口
 

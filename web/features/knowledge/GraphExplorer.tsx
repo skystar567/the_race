@@ -61,7 +61,7 @@ export function GraphExplorer({ snapshot, selectedId, onSelectConcept }: {
       id: `chapter:${chapter.id}`, label: chapter.title, type: 'chapter',
     } })),
     ...snapshot.concepts.map(concept => ({ data: {
-      id: `concept:${concept.id}`, label: concept.name, type: 'concept',
+      id: `concept:${concept.id}`, label: concept.name + (concept.status === 'needs_review' ? ' · 待核对' : ''), type: 'concept',
     } })),
     ...snapshot.relations.map(relation => ({ data: {
       id: `relation:${relation.id}`, source: `${relation.from_type}:${relation.from_id}`,
@@ -175,7 +175,7 @@ export function GraphExplorer({ snapshot, selectedId, onSelectConcept }: {
         {visible.length === 0 && <span className="muted">{mode === 'chapters' ? '展开章节后显示知识点' : '当前版本没有可显示的跨章节知识'}</span>}
         {visible.map(concept => <button key={concept.id} className={`chip-toggle ${selectedId === concept.id ? 'on' : ''}`}
           title={concept.chapter_ids.length > 1 ? '此知识点关联多个章节' : undefined}
-          onClick={() => onSelectConcept(concept.id)}>{concept.name}</button>)}
+          onClick={() => onSelectConcept(concept.id)}>{concept.name}{concept.status === 'needs_review' ? ' · 待核对' : ''}</button>)}
       </div>
     </div>
     <div className="graph-legend">

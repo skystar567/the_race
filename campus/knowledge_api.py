@@ -11,7 +11,7 @@ from .reading import reference_context, render
 
 
 def knowledge_router(data_dir: Path, model: Any | None = None) -> APIRouter:
-    """Create version-pinned read routes and controlled first-build commands."""
+    """Create version-pinned reads and controlled knowledge-build commands."""
     router = APIRouter()
     jobs = Jobs(data_dir, model=model)
 

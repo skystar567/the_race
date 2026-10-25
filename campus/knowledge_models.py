@@ -37,6 +37,17 @@ class KnowledgeDraft(StrictModel):
     relations: list[RelationDraft] = Field(max_length=300)
 
 
+class ConceptUpdate(ConceptDraft):
+    existing_id: str | None = Field(min_length=1)
+    identity_status: Literal["confirmed", "needs_review"]
+    identity_reason: str = Field(min_length=1)
+
+
+class KnowledgeUpdate(StrictModel):
+    concepts: list[ConceptUpdate] = Field(min_length=1, max_length=80)
+    relations: list[RelationDraft] = Field(max_length=300)
+
+
 class PageDraft(StrictModel):
     key: str
     page_md: str = Field(min_length=1)
