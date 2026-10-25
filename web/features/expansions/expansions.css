@@ -1,0 +1,10 @@
+.study-expansion{background:#f1eefb;color:#68579a;border-color:#e3dcf5}
+.badge.review{background:#fdf3e3;color:#8a6a2f;border-color:#f0e0c4}
+.study-expansion{display:flex;flex-direction:column;gap:8px;flex:1;min-width:180px}
+.expansion-box{border:1px solid #e3dcf5;background:#faf8fe;border-radius:6px;padding:10px 12px}
+.expansion-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.expansion-text{font-size:12px;line-height:1.9;color:#4a3f63;white-space:pre-wrap}
+.expansion-actions{margin-top:10px}
+
+.expansion .badge.study-expansion{background:#f1eefb;color:#68579a}
+.study-actions,.qa-note-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #edf0e7}
