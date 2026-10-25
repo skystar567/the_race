@@ -123,6 +123,7 @@ $env:PYTHONPATH='.'
 | [成员扩展验收](docs/verification-tasks-04-13.md) | 03—14 的问答／笔记／路线／增量／反馈／导出、50 项测试、20 个真实问题与限制 |
 | [学习功能接口交接](docs/handoff-learning.md) | 问答、笔记、路线、导出、反馈的请求/响应与版本边界 |
 | [本机交付清单](docs/delivery-checklist.md) | 安装、密钥、启动、演示路径、验收命令、数据清理与限制 |
+| [成员三工作文件](docs/member-c/README.md) | 07/12/13/14/15 的 24 题、路线案例、导出/反馈清单与运行手册（合并版） |
 | [开发规格](.scratch/course-learning-assistant/spec.md) | 本地任务追踪器中的完整规格、用户故事、实现与测试决定 |
 | [独立开发任务](.scratch/course-learning-assistant/tickets-index.md) | 15 个完整功能任务的依赖、验收条件及原清单覆盖关系 |
 | [产品方案](docs/product-plan.md) | 产品定位、功能边界、演示流程与验收标准 |
