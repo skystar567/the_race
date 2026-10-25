@@ -125,6 +125,8 @@ async def check(args):
             await expect(page.get_by_text("后端尚未配置 DEEPSEEK_API_KEY", exact=False)).to_be_visible()
             await expect(page.locator(".scope-actions .primary")).to_be_disabled()
         else:
+            await expect(page.locator(".scope-actions .primary")).to_be_disabled()
+            await page.locator(".scope-picker").get_by_role("checkbox").first.check()
             await expect(page.locator(".scope-actions .primary")).to_be_enabled()
 
         await page.set_viewport_size({"width": 390, "height": 844})
