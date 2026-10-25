@@ -313,3 +313,43 @@ dialog{padding:22px}
 .qa-history-item small{font-size:9px;color:#9aa593;white-space:nowrap}
 .graph-actions{display:flex;align-items:center;gap:10px}
 .graph-actions .secondary{padding:6px 10px;font-size:10px}
+
+
+/* Ticket 05/06: personal notes and explicit expansion */
+.concept-actions,.qa-note-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid #edf0e7}
+.badge.expansion{background:#f1eefb;color:#68579a;border-color:#e3dcf5}
+.badge.review{background:#fdf3e3;color:#8a6a2f;border-color:#f0e0c4}
+.expansion{display:flex;flex-direction:column;gap:8px;flex:1;min-width:180px}
+.expansion-box{border:1px solid #e3dcf5;background:#faf8fe;border-radius:6px;padding:10px 12px}
+.expansion-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.expansion-text{font-size:12px;line-height:1.9;color:#4a3f63;white-space:pre-wrap}
+.expansion-actions{margin-top:10px}
+.notes-workspace{display:flex;flex-direction:column;gap:14px}
+.notes-layout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px;align-items:start}
+.note-list{border:1px solid #e0e6da;border-radius:10px;background:#fdfefa;padding:14px;max-height:760px;overflow:auto}
+.note-list-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.note-list-head h2{font-size:14px;margin:0;color:#3f5b3c}
+.note-item{display:flex;flex-direction:column;gap:5px;width:100%;text-align:left;background:#f8faf4;border:1px solid #edf0e7;border-radius:7px;padding:9px 10px;margin-bottom:7px}
+.note-item:hover{border-color:#cddcc4}
+.note-item.selected{border-color:#9db9a4;background:#eef5e9}
+.note-item-title{font-size:12px;color:#40543c;font-weight:600;overflow-wrap:anywhere}
+.note-item-meta{font-size:9px;color:#93a08b}
+.note-item-badges{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.note-empty{padding:18px 6px;font-size:12px;line-height:1.8}
+.note-editor{border:1px solid #e0e6da;border-radius:10px;background:#fffefa;padding:18px 20px;min-height:420px}
+.note-editor-head{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.note-title-input{flex:1;min-width:180px;border:1px solid transparent;background:transparent;font-size:19px;font-weight:600;color:#2f4632;padding:6px 4px;border-radius:5px}
+.note-title-input:hover,.note-title-input:focus-visible{border-color:#cdd9c3;background:#fcfdf9;outline:none}
+.note-editor-actions{display:flex;gap:8px;align-items:center}
+.note-meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0 12px;font-size:10px;color:#93a08b}
+.note-preview{font-size:13px;line-height:1.9;color:#3a4b36;border-top:1px solid #edf0e7;padding-top:12px;min-height:160px}
+.note-preview a{color:#3f6b4a;text-decoration:underline;text-underline-offset:2px}
+.note-preview h1,.note-preview h2,.note-preview h3{font-size:14px;margin:14px 0 6px}
+.note-preview ul,.note-preview ol{padding-left:20px}
+.note-body-input{width:100%;min-height:260px;border:1px solid #cdd9c3;border-radius:6px;background:#fcfdf9;padding:12px;font-size:13px;line-height:1.8;color:#344631;resize:vertical}
+.note-body-input:focus-visible{outline:3px solid #9db9a4;outline-offset:2px}
+.note-citations{border-top:1px solid #edf0e7;margin-top:14px;padding-top:10px}
+.note-citations h3{font-size:10px;letter-spacing:1px;color:#8b9a81;margin:0 0 8px}
+@media(max-width:900px){.notes-layout{grid-template-columns:minmax(0,1fr)}
+.note-list{max-height:260px}
+}

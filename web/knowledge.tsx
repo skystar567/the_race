@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import katex from 'katex';
 import { QuestionPanel } from './answers';
+import { ExpansionPanel } from './expansion';
 import {
   ConceptDetail,
   KnowledgeSnapshot,
   MaterialDetail,
   ModelStatus,
+  NoteDetail,
   SourceDetail,
   Task,
   conceptUrl,
@@ -273,19 +275,27 @@ function SourceDialog({ source, onClose }: { source: SourceDetail; onClose: () =
 }
 
 function ConceptPanel({
+  courseId,
   concept,
   snapshot,
+  modelConfigured,
   onClose,
   onOpenSource,
   onSelectConcept,
+  onOpenNotes,
 }: {
+  courseId: string;
   concept: ConceptDetail;
   snapshot: KnowledgeSnapshot;
+  modelConfigured: boolean;
   onClose: () => void;
   onOpenSource: (snippetId: string) => void;
   onSelectConcept: (id: string) => void;
+  onOpenNotes: () => void;
 }) {
   const page = useRef<HTMLDivElement>(null);
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState('');
   useRenderedMath(page, concept.html);
   const names = useMemo(
     () => new Map(snapshot.concepts.map(item => [item.id, item.name])),
@@ -295,6 +305,23 @@ function ConceptPanel({
   const relations = snapshot.relations.filter(
     relation => relation.kind !== 'contains' && (relation.from_id === concept.id || relation.to_id === concept.id),
   );
+
+  async function saveAsNote() {
+    setSavingNote(true);
+    setNoteError('');
+    try {
+      await request<NoteDetail>(`/api/courses/${encodeURIComponent(courseId)}/notes/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_type: 'concept', source_id: concept.id }),
+      });
+      onOpenNotes();
+    } catch (cause) {
+      setNoteError(cause instanceof Error ? cause.message : '保存笔记失败。');
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
   function openInlineSource(event: React.MouseEvent<HTMLDivElement>) {
     const anchor = (event.target as HTMLElement).closest('a');
@@ -365,6 +392,18 @@ function ConceptPanel({
           );
         })}
       </section>
+      <div className="concept-actions">
+        <button className="secondary" onClick={() => void saveAsNote()} disabled={savingNote}>
+          {savingNote ? '正在保存…' : '保存为个人笔记'}
+        </button>
+        <ExpansionPanel
+          courseId={courseId}
+          conceptId={concept.id}
+          modelConfigured={modelConfigured}
+          onOpenNotes={onOpenNotes}
+        />
+      </div>
+      {noteError && <p className="task-error" role="alert">{noteError}</p>}
     </aside>
   );
 }
@@ -411,7 +450,7 @@ function TaskPanel({ task, onRetry }: { task: Task; onRetry: () => void }) {
   );
 }
 
-export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
+export function KnowledgeWorkspace({ courseId, onOpenNotes }: { courseId: string; onOpenNotes: () => void }) {
   const [knowledge, setKnowledge] = useState<KnowledgeSnapshot | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [model, setModel] = useState<ModelStatus | null>(null);
@@ -697,8 +736,11 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
           </div>
           {side === 'concept' && selected && knowledge && (
             <ConceptPanel
+              courseId={courseId}
               concept={selected}
               snapshot={knowledge}
+              modelConfigured={Boolean(model?.configured)}
+              onOpenNotes={onOpenNotes}
               onClose={() => {
                 setSelected(null);
                 setSelectedId(null);
@@ -720,6 +762,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
               }}
               onClose={() => setSide(null)}
               onOpenSource={(snippetId, versionId) => void openSource(snippetId, versionId)}
+              onOpenNotes={onOpenNotes}
             />
           )}
         </div>

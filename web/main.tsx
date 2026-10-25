@@ -4,6 +4,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { Course, KnowledgeVersion, Material, MaterialDetail, Fragment, request, materialUrl } from './api';
 import { KnowledgeWorkspace } from './knowledge';
+import { NotesWorkspace } from './notes';
 import './style.css';
 
 function Icon({ name, size = 20 }: { name: 'book' | 'plus' | 'upload' | 'file' | 'arrow' | 'close'; size?: number }) {
@@ -48,7 +49,7 @@ function App() {
   const [detail, setDetail] = useState<MaterialDetail | null>(null);
   const [chapterId, setChapterId] = useState('');
   const [fragments, setFragments] = useState<Fragment[]>([]);
-  const [workspace, setWorkspace] = useState<'materials' | 'knowledge'>('materials');
+  const [workspace, setWorkspace] = useState<'materials' | 'knowledge' | 'notes'>('materials');
   const [readerMode, setReaderMode] = useState<'read' | 'source'>('read');
   const [source, setSource] = useState<Fragment | null>(null);
   const [creating, setCreating] = useState(false);
@@ -167,12 +168,16 @@ function App() {
         <nav className="workspace-tabs" aria-label="工作区视图">
           <button className={workspace === 'materials' ? 'active' : ''} onClick={() => setWorkspace('materials')}>资料阅读</button>
           <button className={workspace === 'knowledge' ? 'active' : ''} onClick={() => setWorkspace('knowledge')}>知识图谱</button>
+          <button className={workspace === 'notes' ? 'active' : ''} onClick={() => setWorkspace('notes')}>个人笔记</button>
         </nav>
         <span className="local-badge">LOCAL · 本机</span></header>
       <div className="workspace">
         {workspace === 'knowledge' ? (<>
           <div className="page-heading"><div><div className="eyebrow">COURSE KNOWLEDGE</div><h1>{course?.name ?? '课程知识'}</h1><p>章节与知识点、包含 / 前置 / 对比关系，以及可核查的原文依据。</p></div></div>
-          {courseId ? <KnowledgeWorkspace key={courseId} courseId={courseId} /> : <div className="empty-state">请先创建或选择一门课程。</div>}
+          {courseId ? <KnowledgeWorkspace key={courseId} courseId={courseId} onOpenNotes={() => setWorkspace('notes')} /> : <div className="empty-state">请先创建或选择一门课程。</div>}
+        </>) : workspace === 'notes' ? (<>
+          <div className="page-heading"><div><div className="eyebrow">PERSONAL NOTES</div><h1>个人笔记</h1><p>从知识点、问答或拓展解释生成，也可以自己写；知识更新不会覆盖你的修改。</p></div></div>
+          {courseId ? <NotesWorkspace key={courseId} courseId={courseId} /> : <div className="empty-state">请先选择一门课程。</div>}
         </>) : (<>
         <div className="page-heading"><div><div className="eyebrow">LEARNING MATERIALS</div><h1>{course?.name ?? '从一门课程开始'}</h1><p>{course ? '教材、课堂笔记与补充材料，在这里集中阅读。' : '建立自己的学习空间，把散落的资料放在一起。'}</p></div>
           <button className="primary" disabled={uploading || !courseId} onClick={() => uploadRef.current?.click()}><Icon name="upload" size={18} />{uploading ? '正在导入…' : '导入 Markdown'}</button>

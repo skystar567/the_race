@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ExpansionPanel } from './expansion';
 import {
   AnswerDetail,
   AnswerStart,
   AnswerStatus,
   AnswerSummary,
   KnowledgeSnapshot,
+  NoteDetail,
   request,
 } from './api';
 
@@ -60,6 +62,7 @@ export function QuestionPanel({
   onClearFocus,
   onClose,
   onOpenSource,
+  onOpenNotes,
 }: {
   courseId: string;
   snapshot: KnowledgeSnapshot;
@@ -68,6 +71,7 @@ export function QuestionPanel({
   onClearFocus: () => void;
   onClose: () => void;
   onOpenSource: (snippetId: string, versionId: string) => void;
+  onOpenNotes: () => void;
 }) {
   const [question, setQuestion] = useState('');
   const [scopeMaterials, setScopeMaterials] = useState<string[]>([]);
@@ -81,6 +85,8 @@ export function QuestionPanel({
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState('');
   const abort = useRef<AbortController | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteError, setNoteError] = useState('');
 
   const groups = useMemo(() => {
     const map = new Map<string, { id: string; filename: string; chapters: Array<{ id: string; title: string }> }>();
@@ -243,6 +249,24 @@ export function QuestionPanel({
       setLive('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '无法读取历史回答。');
+    }
+  }
+
+  async function saveAsNote() {
+    if (!answer || answer.status !== 'completed') return;
+    setSavingNote(true);
+    setNoteError('');
+    try {
+      await request<NoteDetail>(`/api/courses/${encodeURIComponent(courseId)}/notes/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_type: 'answer', source_id: answer.id }),
+      });
+      onOpenNotes();
+    } catch (cause) {
+      setNoteError(cause instanceof Error ? cause.message : '保存笔记失败。');
+    } finally {
+      setSavingNote(false);
     }
   }
 
@@ -410,6 +434,20 @@ export function QuestionPanel({
           {displayStatus && STATUS_HINT[displayStatus] && (
             <p className="form-help">{STATUS_HINT[displayStatus]}</p>
           )}
+          {answer && answer.status === 'completed' && (
+            <div className="qa-note-actions">
+              <button className="secondary" onClick={() => void saveAsNote()} disabled={savingNote}>
+                {savingNote ? '正在保存…' : '保存为个人笔记'}
+              </button>
+              <ExpansionPanel
+                courseId={courseId}
+                answerId={answer.id}
+                modelConfigured={modelConfigured}
+                onOpenNotes={onOpenNotes}
+              />
+            </div>
+          )}
+          {noteError && <p className="task-error" role="alert">{noteError}</p>}
         </section>
       )}
 

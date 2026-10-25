@@ -11,6 +11,7 @@ from .materials import Materials
 from .reading import reference_context, render
 from .answers_api import answers_router
 from .knowledge_api import knowledge_router
+from .study_api import study_router
 
 
 class CourseInput(BaseModel):
@@ -98,6 +99,7 @@ def create_app(data_dir: Path, static_dir: Path | None = None, model=None) -> Fa
 
     app.include_router(knowledge_router(data_dir, model=model))
     app.include_router(answers_router(data_dir, model=model))
+    app.include_router(study_router(data_dir, model=model))
 
     if static_dir is not None:
         static_root = static_dir.resolve()
