@@ -39,15 +39,17 @@ sh scripts/start.sh
 
 前端开发可在后端运行时执行 `npm run dev`，开发服务器会把业务请求转发给本机 8000 端口。正式本机运行由后端提供前端构建产物。
 
-## 真实教材样本
+## 共享教材与真实样本
 
-从已有教材提取第 2 章开头至 2.1.1 节，原教材保持不变：
+仓库已包含[完整教材 Markdown](materials/textbooks/计算机操作系统（第四版）.md)及[第 2 章开头至 2.1.1 节的短样本](materials/samples/计算机操作系统（第四版）_第2章至2.1.1节.md)。成员拉取代码后即可在应用中导入；任务 02 建议从短样本开始，出处与使用说明见[共享开发教材](materials/README.md)。
+
+也可以从仓库内的教材重新生成本机样本，原教材保持不变：
 
 ```sh
-.venv/bin/python scripts/prepare_sample.py '/root/pdfclean/cleanpdf/书籍合集/计算机操作系统（第四版）.md'
+.venv/bin/python scripts/prepare_sample.py 'materials/textbooks/计算机操作系统（第四版）.md'
 ```
 
-输出位于 `data/samples/`。创建课程后，在界面中选择生成的 `.md` 文件导入；旁边的 `.source.json` 记录原教材行号及文件摘要。界面中的行号对应实际上传文件，不把摘录后的行号冒充整本教材的行号。样本和上传原文不纳入版本管理。
+重新生成的本机样本位于 `data/samples/`。创建课程后，在界面中选择 `.md` 文件导入；旁边的 `.source.json` 记录原教材行号及文件摘要。界面中的行号对应实际上传文件，不把摘录后的行号冒充整本教材的行号。共享教材和样本位于 `materials/`，应用运行数据仍保存在不纳入版本管理的 `data/` 中。
 
 ## 验证
 
@@ -76,6 +78,7 @@ sh scripts/start.sh --data-dir /tmp/campus-browser-check
 | 文档 | 内容 |
 | --- | --- |
 | [三人协作计划](docs/team-plan.md) | 三人任务分配、并行工作、依赖交接和交付约定 |
+| [共享开发教材](materials/README.md) | 完整教材 Markdown、首次整理样本、出处与使用说明 |
 | [任务 01 验证记录](docs/verification-ticket-01.md) | 实现范围、干净安装、浏览器验收和审查结果 |
 | [开发规格](.scratch/course-learning-assistant/spec.md) | 本地任务追踪器中的完整规格、用户故事、实现与测试决定 |
 | [独立开发任务](.scratch/course-learning-assistant/tickets-index.md) | 15 个完整功能任务的依赖、验收条件及原清单覆盖关系 |
@@ -115,4 +118,4 @@ sh scripts/start.sh --data-dir /tmp/campus-browser-check
 
 计划使用《计算机操作系统（第四版）》第 2 章及第 3 章的 3.5—3.8 节，展示真实预构建知识库与现场短资料增量。
 
-方案中的教材路径用于记录开发环境中的材料位置；教材正文及图片未随本仓库发布。第一版只接收 Markdown，缺失图片会明确标注，不包含 PDF/OCR 输入与图片理解。
+完整教材 Markdown 和首次整理样本已放入 `materials/` 供成员共同开发，引用的图片文件未包含。方案中的原始教材路径保留为来源记录，成员使用仓库内的相对路径即可。第一版只接收 Markdown，缺失图片会明确标注，不包含 PDF/OCR 输入与图片理解。
