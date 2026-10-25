@@ -107,15 +107,14 @@ class Knowledge:
             current = db.execute(
                 "SELECT current_version_id FROM course_knowledge WHERE course_id=?", (course_id,)
             ).fetchone()
-            if current is not None:
-                raise ValueError("该课程已有已发布知识；追加整理需由任务 08 接入，首次整理不能覆盖旧知识。")
+            parent_version_id = current["current_version_id"] if current else None
             if row is None:
                 version_id = str(uuid4())
                 db.execute(
                     """INSERT INTO knowledge_version
                     (id,course_id,task_id,parent_version_id,state,snapshot_json)
-                    VALUES (?,?,?,NULL,'candidate',?)""",
-                    (version_id, course_id, task_id, payload),
+                    VALUES (?,?,?,?,?,?)""",
+                    (version_id, course_id, task_id, parent_version_id, "candidate", payload),
                 )
             else:
                 version_id = str(row["id"])

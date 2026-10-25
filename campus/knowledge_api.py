@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from .jobs import Jobs
 from .knowledge_models import ScopeInput
-from .reading import reference_context, render
+from .reading import render
 
 
 def knowledge_router(data_dir: Path, model: Any | None = None) -> APIRouter:
@@ -25,11 +25,10 @@ def knowledge_router(data_dir: Path, model: Any | None = None) -> APIRouter:
         return containing[-1]["title"] if containing else None
 
     def source_view(snapshot: dict[str, Any], fragment: dict[str, Any]) -> dict[str, Any]:
-        original = jobs.materials.raw(snapshot["course_id"], fragment["material_id"]).decode("utf-8-sig")
         return fragment | {
             "version_id": snapshot["version_id"],
             "chapter_title": chapter_title(snapshot, fragment),
-            "html": render(fragment["markdown"], reference_context(original)),
+            "html": render(fragment["markdown"]),
         }
 
     @router.get("/api/model/status")

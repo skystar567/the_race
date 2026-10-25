@@ -1,6 +1,6 @@
 # 校园课程学习助手：开发任务清单 v0.1
 
-状态：依据已确认的 [产品方案](product-plan.md) 和 [技术方案](technical-design.md) 拆分。独立任务 01 已完成，详见[验证记录](verification-ticket-01.md)；整体 M1 尚未完成。勾选表示实际完成且满足相应检查，不表示用户已经确认过方案。后续执行以[15 项独立任务](../.scratch/course-learning-assistant/tickets-index.md)为准。
+状态：依据已确认的 [产品方案](product-plan.md) 和 [技术方案](technical-design.md) 拆分。任务 01、02 已完成；任务 03—13 的主要闭环已接入，任务 14 已完成 20/20 真实问答，详见[成员扩展验收](verification-tasks-04-13.md)。原清单仍有少量细化项未逐条达到，不把部分完成写成全部完成。勾选表示实际完成且满足相应检查，不表示用户已经确认过方案。后续执行以[15 项独立任务](../.scratch/course-learning-assistant/tickets-index.md)为准。
 
 ## 执行约束
 

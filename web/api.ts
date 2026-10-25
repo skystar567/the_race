@@ -80,6 +80,17 @@ export interface KnowledgeChapter {
   filename: string;
 }
 
+export interface KnowledgeConflict {
+  id: string;
+  concept_id: string;
+  other_concept_id: string;
+  name: string;
+  kind: string;
+  previous_definition: string;
+  incoming_definition: string;
+  status: string;
+}
+
 export interface KnowledgeFragment {
   id: string;
   chapter_id: string | null;
@@ -102,6 +113,7 @@ export interface KnowledgeSnapshot {
   fragments: KnowledgeFragment[];
   selection: { material_ids: string[]; chapter_ids: string[] } | null;
   summary: { new_concepts: number; updated_concepts: number; conflicts: number } | null;
+  conflicts?: KnowledgeConflict[];
 }
 
 export interface ConceptDetail extends KnowledgeConcept {
@@ -153,6 +165,71 @@ export interface KnowledgeVersion {
   parent_version_id: string | null;
   created_at: string;
   is_current: boolean;
+}
+
+export interface NoteCitation {
+  id: string;
+  snippet_id: string;
+  quote: string;
+  version_id: string | null;
+}
+
+export interface StudyNote {
+  id: string;
+  course_id: string;
+  concept_id: string | null;
+  title: string;
+  markdown: string;
+  expansion: boolean;
+  created_at: string;
+  updated_at: string;
+  citations: NoteCitation[];
+}
+
+export interface AnswerCitation {
+  snippet_id: string;
+  quote: string;
+  filename: string;
+  start_line: number;
+  end_line: number;
+  chapter_title: string | null;
+}
+
+export interface AnswerResult {
+  status: 'completed' | 'completed_with_expansion' | 'invalid_citations' | 'unverified' | 'insufficient';
+  answer: string;
+  citations: AnswerCitation[];
+  invalid_citations?: string[];
+  version_id: string;
+  concepts?: string[];
+  warnings: string[];
+  scope?: { material_ids: string[]; chapter_ids: string[] };
+}
+
+export interface FeedbackRecord {
+  id: string;
+  course_id: string;
+  target_type: 'concept' | 'relation' | 'page';
+  target_id: string;
+  body: string;
+  status: 'open' | 'checking' | 'resolved';
+  resolution: 'open' | 'checking' | 'changed' | 'unchanged' | 'failed';
+  task_id: string | null;
+  created_at: string;
+}
+
+export interface RouteResult {
+  version_id: string;
+  target: string;
+  current: string | null;
+  status: 'complete' | 'partial' | 'blocked';
+  route: string[];
+  prior: string[];
+  cycles: string[][];
+  gaps: { node: string; required_by: string[]; reason: string }[];
+  unverified: { from: string; to: string; reason: string }[];
+  excluded_relations: { from: string; to: string; type: string; reason: string }[];
+  warnings: string[];
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
