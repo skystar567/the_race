@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from .jobs import Jobs
 from .knowledge_models import ScopeInput
-from .reading import reference_context, render
+from .reading import render
 
 
 def knowledge_router(data_dir: Path, model: Any | None = None) -> APIRouter:
@@ -25,11 +25,10 @@ def knowledge_router(data_dir: Path, model: Any | None = None) -> APIRouter:
         return containing[-1]["title"] if containing else None
 
     def source_view(snapshot: dict[str, Any], fragment: dict[str, Any]) -> dict[str, Any]:
-        original = jobs.materials.raw(snapshot["course_id"], fragment["material_id"]).decode("utf-8-sig")
         return fragment | {
             "version_id": snapshot["version_id"],
             "chapter_title": chapter_title(snapshot, fragment),
-            "html": render(fragment["markdown"], reference_context(original)),
+            "html": render(fragment["markdown"]),
         }
 
     @router.get("/api/model/status")
@@ -71,35 +70,6 @@ def knowledge_router(data_dir: Path, model: Any | None = None) -> APIRouter:
     async def list_versions(course_id: str) -> list[dict[str, Any]]:
         jobs.materials.require_course(course_id)
         return jobs.knowledge.versions(course_id)
-
-    @router.get("/api/courses/{course_id}/knowledge/coverage")
-    async def read_coverage(course_id: str, version_id: str | None = None) -> dict[str, Any]:
-        """Compare immutable source fragments with the requested knowledge version."""
-        available = jobs.materials.list_materials(course_id)
-        snapshot = jobs.knowledge.snapshot(course_id, version_id)
-        organized = {fragment["id"] for fragment in snapshot["fragments"]} if snapshot else set()
-
-        def scope_status(fragments: list[dict[str, Any]]) -> dict[str, Any]:
-            count = sum(fragment["id"] in organized for fragment in fragments)
-            return {
-                "status": "unorganized" if not count else "organized" if count == len(fragments) else "partial",
-                "organized_fragments": count,
-                "total_fragments": len(fragments),
-            }
-
-        materials = []
-        for material in available:
-            detail = jobs.materials.detail(course_id, material["id"])
-            fragments = jobs.materials.fragments(course_id, material["id"])
-            chapters = []
-            for chapter in detail["chapters"]:
-                inside = [fragment for fragment in fragments
-                          if chapter["start_line"] <= fragment["start_line"]
-                          and fragment["end_line"] <= chapter["end_line"]]
-                chapters.append(chapter | scope_status(inside))
-            materials.append(detail | scope_status(fragments) | {"chapters": chapters})
-        return {"course_id": course_id, "version_id": snapshot["version_id"] if snapshot else None,
-                "materials": materials}
 
     @router.get("/api/courses/{course_id}/knowledge")
     async def read_knowledge(course_id: str, version_id: str | None = None) -> dict[str, Any]:

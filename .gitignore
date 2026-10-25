@@ -1,16 +1,6 @@
 .env
 .env.*
-.env-*
-*.env
-*.env.*
 !.env.example
-.envrc
-.secrets/
-secrets/
-*.pem
-*.key
-id_rsa*
-id_ed25519*
 .aws/
 .agents/
 .codex/

@@ -73,7 +73,7 @@ class DeepSeek:
             "model": "deepseek-flash", "instructions": instructions,
             "input": json.dumps(content, ensure_ascii=False),
             "reasoning": {"effort": "high" if thinking else "none"},
-            "max_output_tokens": 16384 if thinking else 8192,
+            "max_output_tokens": 24576 if thinking else 8192,
         }
         if schema is not None:
             payload["text"] = {"format": {"type": "json_schema", "name": "course_output", "schema": schema}}
