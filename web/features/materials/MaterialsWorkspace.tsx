@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { materialUrl, request, type Course, type Fragment, type Material, type MaterialDetail } from '../../api';
+import { knowledgeUrl, materialUrl, request, type Course, type Fragment, type Material, type MaterialDetail, type KnowledgeSnapshot } from '../../api';
 import { Icon } from '../../shared/Icon';
 import { Modal } from '../../shared/Modal';
 import { ReadingContent } from './ReadingContent';
@@ -10,6 +10,7 @@ export function MaterialsWorkspace({ course, onMaterialCountChange }: {
   onMaterialCountChange: (courseId: string, count: number) => void;
 }) {
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [knowledge, setKnowledge] = useState<KnowledgeSnapshot | null>(null);
   const [materialId, setMaterialId] = useState('');
   const [detail, setDetail] = useState<MaterialDetail | null>(null);
   const [chapterId, setChapterId] = useState('');
@@ -30,6 +31,9 @@ export function MaterialsWorkspace({ course, onMaterialCountChange }: {
 
   useEffect(() => {
     const controller = new AbortController();
+    request<KnowledgeSnapshot>(knowledgeUrl(course.id), { signal: controller.signal }).then(snapshot => {
+      if (!controller.signal.aborted) setKnowledge(snapshot);
+    }).catch(error => { if (!controller.signal.aborted) report(error); });
     request<Material[]>(`/api/courses/${encodeURIComponent(course.id)}/materials`, { signal: controller.signal }).then(items => {
       if (controller.signal.aborted) return;
       setMaterials(items);
@@ -140,7 +144,10 @@ export function MaterialsWorkspace({ course, onMaterialCountChange }: {
                 <a className="download-link" href={materialUrl(course.id, materialId) + '/raw'}>下载原始文件 ↗</a>
               </div>
               <div className="document-heading">
-                <div className="document-meta"><span className="imported-badge">已导入 · 尚未整理</span><span>{detail.fragment_count} 个原文片段</span></div>
+                <div className="document-meta"><span className="imported-badge">{knowledge?.selection?.material_ids.includes(detail.id)
+                  ? '已导入 · 已整理'
+                  : knowledge?.fragments.some(fragment => fragment.material_id === detail.id)
+                    ? '已导入 · 部分章节已整理' : '已导入 · 尚未整理'}</span><span>{detail.fragment_count} 个原文片段</span></div>
                 <h2>{detail.filename.replace(/\.md$/i, '')}</h2>
                 <p>保留上传内容，章节目录依据原文编号组织。</p>
                 {detail.missing_image_count > 0 && <div className="image-notice">资料引用了 {detail.missing_image_count} 张未导入的图片，阅读时会标出缺失位置。</div>}

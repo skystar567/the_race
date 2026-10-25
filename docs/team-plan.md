@@ -10,8 +10,9 @@
 - 任务 01 已有课程创建、Markdown 导入、章节和原文阅读的代码；接口测试已覆盖持久化、课程隔离、原文定位及阅读内容。
 - 任务 01 的解析审查问题已修复，已通过前后端干净安装、10 项接口测试、类型检查、前端构建和真实浏览器验收，可作为任务 02 的基础版本。详见[实现与验证记录](verification-ticket-01.md)。
 - 共享仓库为 [skystar567/the_race](https://github.com/skystar567/the_race)，使用 `main` 集成。规格与任务继续在仓库内的本地 Markdown 维护。
-- 完整教材和首次整理短样本已共享在 [`materials/`](../materials/README.md)。成员拉取代码即可导入，样本附原教材行号与摘要记录。
-- A 已完成共享前端拆分，现有资料接口和接入约定见[前端与资料接口交接](frontend-handoff.md)。任务 02—15 尚未验收；03 的图谱部分继续等待 02。任务标记 `ready-for-agent` 表示说明已充分，不代表前置任务已完成。
+- 完整教材和首次整理短样本已共享在 [`materials/`](../materials/README.md)。
+- A 已完成共享前端拆分，接入约定见[前端交接](frontend-handoff.md)。正在合入 B 的任务 02，修复发布校验、任务接管与图谱标记问题，并补充真实 DeepSeek 短样本验收。B 的原始记录见[任务 02 验证记录](verification-ticket-02.md)。
+- 任务 03—15 尚未验收。`ready-for-agent` 表示说明充分，不代表实现完成。
 
 三人开始前共同阅读：
 

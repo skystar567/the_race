@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { request, type Course } from '../api';
 import { MaterialsWorkspace } from '../features/materials/MaterialsWorkspace';
+import { KnowledgeWorkspace } from '../features/knowledge/KnowledgeWorkspace';
 import { Icon } from '../shared/Icon';
 import { Modal } from '../shared/Modal';
 import './app.css';
@@ -51,6 +52,7 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const course = courses.find(item => item.id === courseId);
+  const [workspace, setWorkspace] = useState<'materials' | 'knowledge'>('materials');
   const syncMaterialCount = useCallback((targetCourse: string, count: number) => {
     setCourses(items => items.map(item => item.id === targetCourse ? { ...item, material_count: count } : item));
   }, []);
@@ -90,11 +92,21 @@ export function App() {
         <div className="sidebar-footer"><span className="status-dot" />本机学习空间<p>资料保存在这台电脑，<br />随时回来继续阅读。</p></div>
       </aside>
       <main>
-        <header className="topbar"><span>我的学习空间 <span className="breadcrumb-slash">/</span> <strong>{course?.name ?? '欢迎'}</strong></span><span className="local-badge">LOCAL · 本机</span></header>
+        <header className="topbar">
+          <span>我的学习空间 <span className="breadcrumb-slash">/</span> <strong>{course?.name ?? '欢迎'}</strong></span>
+          {course && <nav className="workspace-tabs" aria-label="课程工作区">
+            <button className={workspace === 'materials' ? 'active' : ''} onClick={() => setWorkspace('materials')}>资料阅读</button>
+            <button className={workspace === 'knowledge' ? 'active' : ''} onClick={() => setWorkspace('knowledge')}>知识图谱</button>
+          </nav>}
+          <span className="local-badge">LOCAL · 本机</span>
+        </header>
         <div className="workspace">
           {error && <div className="message error" role="alert">{error}</div>}
           {loading ? <div className="empty-state" role="status">正在读取学习空间…</div> : course ? (
-            <MaterialsWorkspace
+            workspace === 'knowledge' ? <>
+              <div className="page-heading"><div><div className="eyebrow">COURSE KNOWLEDGE</div><h1>{course.name}</h1><p>从教材中整理知识点，沿着关系理解课程，随时回到原文核对。</p></div></div>
+              <KnowledgeWorkspace key={course.id} courseId={course.id} />
+            </> : <MaterialsWorkspace
               key={course.id}
               course={course}
               onMaterialCountChange={syncMaterialCount}
@@ -117,6 +129,7 @@ export function App() {
       {creating && <CreateCourseDialog onClose={() => setCreating(false)} onCreated={created => {
         setCourses(items => [...items, created]);
         setCourseId(created.id);
+        setWorkspace('materials');
         setCreating(false);
       }} />}
     </div>
