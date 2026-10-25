@@ -1,0 +1,8 @@
+{
+  "source": "计算机操作系统（第四版）.md",
+  "source_sha256": "7495231830d04c26eb57f51286b7fe209f88102ca3912abc8b95f87b8ca69d94",
+  "source_start_line": 1058,
+  "source_end_line": 1141,
+  "sample_sha256": "d0239568498eff5bcda59e8a25113c9f6c1ea864ac60a1546328dcd8e2220393",
+  "note": "教材原文逐字节摘录；任务03选择2.1.1和2.1.2整理，2.1.3保留为未整理范围。界面行号相对于样本文件。"
+}

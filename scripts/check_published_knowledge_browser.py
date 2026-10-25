@@ -25,6 +25,32 @@ async def check(args):
         await page.goto(args.url)
         await page.get_by_role("navigation", name="课程", exact=True).get_by_role("button").filter(has_text=args.course).click()
         await page.get_by_role("button", name="知识图谱", exact=True).click()
+        if args.verify_chapter_scope:
+            await expect(page.get_by_role("button", name="章节概览", exact=True)).to_have_attribute("aria-pressed", "true")
+            coverage = await (await page.request.get(base + "/coverage?version_id=" + version)).json()
+            assert coverage["version_id"] == version
+            chapter_rows = {chapter["id"]: chapter for material in coverage["materials"] for chapter in material["chapters"]}
+            selected_chapters = snapshot["selection"]["chapter_ids"]
+            assert len(selected_chapters) >= 2
+            assert all(chapter_rows[chapter_id]["status"] == "organized" for chapter_id in selected_chapters)
+            unorganized = [material for material in coverage["materials"] if material["status"] == "unorganized"]
+            assert unorganized, "The real acceptance course must retain unprocessed material"
+            await page.locator(".coverage-panel summary").click()
+            for material in unorganized:
+                await expect(page.locator(".coverage-material").filter(has_text=material["filename"])).to_contain_text("尚未整理")
+            await page.locator(".coverage-panel summary").click()
+            chapters = {chapter["id"]: chapter for chapter in snapshot["chapters"]}
+            shared = [concept for concept in snapshot["concepts"] if len({chapters[cid]["material_id"] for cid in concept["chapter_ids"]}) >= 2]
+            assert shared, "Real definitions and applications must share at least one knowledge identity"
+            # Expanding both selected sections must expose one button per shared identity.
+            for chapter_id in selected_chapters:
+                await page.get_by_role("button", name="展开 " + chapter_rows[chapter_id]["title"], exact=True).click()
+            for concept in shared:
+                await expect(page.locator(".concept-list").get_by_role("button", name=concept["name"], exact=True)).to_have_count(1)
+            await page.get_by_role("button", name="跨章节关联", exact=True).click()
+            for concept in shared:
+                await expect(page.locator(".concept-list").get_by_role("button", name=concept["name"], exact=True)).to_have_count(1)
+        await page.get_by_role("button", name="全图", exact=True).click()
         await expect(page.locator(".graph-canvas canvas").first).to_be_visible()
         for concept in snapshot["concepts"]:
             detail = await (await page.request.get(base + f"/versions/{version}/concepts/{concept['id']}")).json()
@@ -49,6 +75,7 @@ async def check(args):
             await page.screenshot(path=args.screenshot, full_page=True)
         await page.reload()
         await page.get_by_role("button", name="知识图谱", exact=True).click()
+        await page.get_by_role("button", name="全图", exact=True).click()
         await expect(page.locator(".concept-list button")).to_have_count(len(snapshot["concepts"]))
         reopened = await (await page.request.get(base)).json()
         assert reopened["version_id"] == version
@@ -66,4 +93,5 @@ if __name__ == "__main__":
     parser.add_argument("--url", default="http://127.0.0.1:8017")
     parser.add_argument("--course", required=True)
     parser.add_argument("--screenshot")
+    parser.add_argument("--verify-chapter-scope", action="store_true", help="同时核查真实多章节范围及跨资料的概念身份")
     asyncio.run(check(parser.parse_args()))

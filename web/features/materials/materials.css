@@ -1,5 +1,8 @@
 .materials-workspace .materials-layout{display:grid;grid-template-columns:227px minmax(0,1fr);border:1px solid #dfe5da;border-radius:10px;background:#fff;overflow:hidden}
 .materials-workspace .material-sidebar{background:#f9faf6;border-right:1px solid #e3e8de;padding:18px 12px;min-width:0}
+.materials-workspace .scope-status{display:block;font-size:9px;color:#879181;font-weight:400}
+.materials-workspace .scope-status.organized{color:#3f6b3a}
+.materials-workspace .scope-status.partial{color:#9a6b22}
 .materials-workspace .pane-label{font-size:10px;letter-spacing:.8px;color:#8d9a85;padding:2px 10px 12px;display:flex;justify-content:space-between}
 .materials-workspace .material-button{display:flex;gap:9px;padding:12px 10px;width:100%;text-align:left;color:#53644b;background:transparent;border-radius:6px;align-items:flex-start;line-height:1.6;font-size:11px}
 .materials-workspace .material-button svg{flex-shrink:0;margin-top:3px;color:#899f78}

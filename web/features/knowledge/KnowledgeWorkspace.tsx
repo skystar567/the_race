@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import cytoscape, { Core, ElementDefinition } from 'cytoscape';
+import { GraphExplorer } from './GraphExplorer';
+import { CoveragePanel } from './CoveragePanel';
 import katex from 'katex';
 import {
   ConceptDetail,
@@ -31,93 +32,6 @@ const STEP_MARK: Record<Task['steps'][number]['status'], string> = {
   failed: '失败',
 };
 
-const GRAPH_STYLE: cytoscape.StylesheetStyle[] = [
-  {
-    selector: 'node',
-    style: {
-      label: 'data(label)',
-      'font-size': 12,
-      'text-valign': 'center',
-      'text-halign': 'center',
-      'text-wrap': 'wrap',
-      'text-max-width': '120px',
-      padding: '10px',
-      shape: 'round-rectangle',
-      'border-width': 1.5,
-    },
-  },
-  {
-    selector: 'node[type="chapter"]',
-    style: {
-      'background-color': '#12263a',
-      color: '#f8fafc',
-      'border-color': '#12263a',
-      width: 'label',
-      height: 'label',
-    },
-  },
-  {
-    selector: 'node[type="concept"]',
-    style: {
-      'background-color': '#fff7ed',
-      color: '#7c2d12',
-      'border-color': '#c2410c',
-      width: 'label',
-      height: 'label',
-    },
-  },
-  {
-    selector: 'node.selected',
-    style: { 'border-width': 3, 'border-color': '#0f766e', 'background-color': '#ecfdf5' },
-  },
-  {
-    selector: 'edge[kind="contains"]',
-    style: {
-      'line-style': 'solid',
-      'line-color': '#94a3b8',
-      'curve-style': 'bezier',
-      width: 1.2,
-      'target-arrow-shape': 'none',
-    },
-  },
-  {
-    selector: 'edge[kind="precedes"]',
-    style: {
-      'line-color': '#1d4ed8',
-      width: 2,
-      'curve-style': 'bezier',
-      'target-arrow-shape': 'triangle',
-      'target-arrow-color': '#1d4ed8',
-      label: 'data(label)',
-      'font-size': 10,
-      color: '#1d4ed8',
-      'text-background-color': '#ffffff',
-      'text-background-opacity': 0.9,
-      'text-background-padding': '2px',
-    },
-  },
-  {
-    selector: 'edge[kind="contrasts"]',
-    style: {
-      'line-color': '#b45309',
-      'line-style': 'dotted',
-      width: 2,
-      'curve-style': 'bezier',
-      'target-arrow-shape': 'none',
-      label: 'data(label)',
-      'font-size': 10,
-      color: '#b45309',
-      'text-background-color': '#ffffff',
-      'text-background-opacity': 0.9,
-      'text-background-padding': '2px',
-    },
-  },
-  {
-    selector: 'edge[origin="suggested"]',
-    style: { 'line-style': 'dashed' },
-  },
-];
-
 function useRenderedMath(ref: React.RefObject<HTMLElement | null>, html: string | undefined) {
   useEffect(() => {
     ref.current?.querySelectorAll<HTMLElement>('[data-math]').forEach(element => {
@@ -129,95 +43,6 @@ function useRenderedMath(ref: React.RefObject<HTMLElement | null>, html: string 
       });
     });
   }, [ref, html]);
-}
-
-function KnowledgeGraph({
-  snapshot,
-  selectedId,
-  onSelectConcept,
-}: {
-  snapshot: KnowledgeSnapshot;
-  selectedId: string | null;
-  onSelectConcept: (id: string) => void;
-}) {
-  const container = useRef<HTMLDivElement>(null);
-  const instance = useRef<Core | null>(null);
-  const select = useRef(onSelectConcept);
-  select.current = onSelectConcept;
-
-  useEffect(() => {
-    if (!container.current) return;
-    const elements: ElementDefinition[] = [
-      ...snapshot.chapters.map(chapter => ({
-        data: { id: `chapter:${chapter.id}`, label: chapter.title, type: 'chapter' },
-      })),
-      ...snapshot.concepts.map(concept => ({
-        data: { id: `concept:${concept.id}`, label: concept.name, type: 'concept' },
-      })),
-      ...snapshot.relations.map(relation => ({
-        data: {
-          id: `relation:${relation.id}`,
-          source: `${relation.from_type}:${relation.from_id}`,
-          target: `${relation.to_type}:${relation.to_id}`,
-          kind: relation.kind,
-          origin: relation.origin,
-          label: relation.kind === 'contains' ? '' : KIND_LABEL[relation.kind],
-        },
-      })),
-    ];
-    const cy = cytoscape({
-      container: container.current,
-      elements,
-      style: GRAPH_STYLE,
-      layout: {
-        name: 'cose',
-        animate: false,
-        randomize: false,
-        numIter: 1500,
-        padding: 40,
-        nodeDimensionsIncludeLabels: true,
-        nodeOverlap: 16,
-        componentSpacing: 50,
-        nodeRepulsion: () => 11000,
-        idealEdgeLength: () => 130,
-        gravity: 0.4,
-      },
-      minZoom: 0.2,
-      maxZoom: 2.5,
-      wheelSensitivity: 0.2,
-    });
-    cy.on('tap', 'node[type="concept"]', event => {
-      select.current(event.target.id().slice('concept:'.length));
-    });
-    instance.current = cy;
-    return () => {
-      cy.destroy();
-      instance.current = null;
-    };
-  }, [snapshot]);
-
-  useEffect(() => {
-    const cy = instance.current;
-    const element = container.current;
-    if (!cy || !element || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => {
-      if (cy.destroyed()) return;
-      cy.resize();
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [snapshot]);
-
-  useEffect(() => {
-    const cy = instance.current;
-    if (!cy) return;
-    cy.nodes().removeClass('selected');
-    if (!selectedId) return;
-    const node = cy.getElementById(`concept:${selectedId}`);
-    if (node.nonempty()) node.addClass('selected');
-  }, [selectedId, snapshot]);
-
-  return <div className="graph-canvas" ref={container} role="img" aria-label="章节与知识点关系图" />;
 }
 
 function SourceDialog({ source, onClose }: { source: SourceDetail; onClose: () => void }) {
@@ -601,6 +426,7 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
       )}
 
       {latest && <TaskPanel task={latest} onRetry={() => void retryTask(latest)} />}
+      {published && knowledge?.version_id && <CoveragePanel courseId={courseId} versionId={knowledge.version_id} />}
 
       {!published ? (
         <section className="unpublished">
@@ -670,35 +496,8 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
               </div>
               <span className="muted">当前展示首次整理的知识</span>
             </div>
-            {knowledge && (
-              <KnowledgeGraph
-                snapshot={knowledge}
-                selectedId={selectedId}
-                onSelectConcept={id => void selectConcept(id)}
-              />
-            )}
-            <div className="concept-list" aria-label="知识点列表">
-              <span className="pane-label">知识点</span>
-              <div className="concept-chips">
-                {knowledge?.concepts.map(concept => (
-                  <button
-                    key={concept.id}
-                    className={`chip-toggle ${selectedId === concept.id ? 'on' : ''}`}
-                    onClick={() => void selectConcept(concept.id)}
-                  >
-                    {concept.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="graph-legend">
-              <span><i className="dot chapter" />章节</span>
-              <span><i className="dot concept" />知识点</span>
-              <span><i className="line contains" />包含</span>
-              <span><i className="line precedes" />前置（有方向）</span>
-              <span><i className="line contrasts" />对比（无先后）</span>
-              <span><i className="line suggested" />虚线 = 系统推断</span>
-            </div>
+            {knowledge && <GraphExplorer key={knowledge.version_id} snapshot={knowledge} selectedId={selectedId} onSelectConcept={selectConcept} />}
+
           </div>
           {selected && knowledge && (
             <ConceptPanel
