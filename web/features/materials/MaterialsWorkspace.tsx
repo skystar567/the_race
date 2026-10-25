@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { COVERAGE_LABEL, coverageUrl, materialUrl, request, type Course, type Fragment, type Material, type MaterialDetail, type KnowledgeCoverage } from '../../api';
+import { materialUrl, request, type Course, type Fragment, type Material, type MaterialDetail } from '../../api';
+import { COVERAGE_LABEL, coverageUrl, type KnowledgeCoverage } from '../knowledge/coverage-api';
 import { Icon } from '../../shared/Icon';
 import { Modal } from '../../shared/Modal';
 import { ReadingContent } from './ReadingContent';

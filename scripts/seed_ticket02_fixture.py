@@ -22,6 +22,14 @@ SAMPLE = """# 第二章 进程的描述与控制
 
 进程是程序的一次执行。进程是系统进行资源分配和调度的独立单位。
 
+以下内容仅用于渲染验收：$1 + 1 = 2$。
+
+```python
+print("render fixture")
+```
+
+![进程示意图](images/process-fixture.png)
+
 ## 2.2 线程
 
 线程是进程中的一个执行单元，是处理机调度的基本单位。
@@ -112,6 +120,9 @@ def seed(data_dir: Path):
                     "进程是程序的一次执行，也是资源分配和调度的独立单位。"
                     f"[原文](snippet:{process_snippet['id']})\n\n"
                     "在后续学习中，可以把进程理解为承载资源与执行流的单位。"
+                    '\n\n以下内容仅用于渲染验收：$1 + 1 = 2$。\n\n'
+                    '```python\nprint("render fixture")\n```\n\n'
+                    '![进程示意图](images/process-fixture.png)\n'
                 ),
                 "citations": [
                     {

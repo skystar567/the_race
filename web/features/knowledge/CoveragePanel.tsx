@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { COVERAGE_LABEL, coverageUrl, request, type KnowledgeCoverage } from '../../api';
+import { request } from '../../api';
+import { COVERAGE_LABEL, coverageUrl, type KnowledgeCoverage } from './coverage-api';
 
 /** Read coverage against the same version as the graph, including unprocessed sources. */
 export function CoveragePanel({ courseId, versionId }: { courseId: string; versionId: string }) {

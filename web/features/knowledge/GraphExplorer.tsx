@@ -56,44 +56,42 @@ export function GraphExplorer({ snapshot, selectedId, onSelectConcept }: {
         && (mode !== 'cross' || crossRelations.includes(relation)));
   }, [snapshot, visible, mode, crossRelations]);
 
-  const elements = useMemo<ElementDefinition[]>(() => [
+  const allElements = useMemo<ElementDefinition[]>(() => [
     ...snapshot.chapters.map(chapter => ({ data: {
       id: `chapter:${chapter.id}`, label: chapter.title, type: 'chapter',
     } })),
-    ...visible.map(concept => ({ data: {
+    ...snapshot.concepts.map(concept => ({ data: {
       id: `concept:${concept.id}`, label: concept.name, type: 'concept',
     } })),
-    ...relations.map(relation => ({ data: {
+    ...snapshot.relations.map(relation => ({ data: {
       id: `relation:${relation.id}`, source: `${relation.from_type}:${relation.from_id}`,
       target: `${relation.to_type}:${relation.to_id}`, kind: relation.kind, origin: relation.origin,
       label: relation.kind === 'contains' ? '' : KIND_LABEL[relation.kind],
     } })),
-  ], [snapshot, visible, relations]);
+  ], [snapshot]);
+  const visibleIds = useMemo(() => new Set([
+    ...snapshot.chapters.map(chapter => `chapter:${chapter.id}`),
+    ...visible.map(concept => `concept:${concept.id}`),
+    ...relations.map(relation => `relation:${relation.id}`),
+  ]), [snapshot, visible, relations]);
   const viewKey = mode + (mode === 'chapters' ? ':' + [...expanded].sort().join(',') : '');
 
   function toggleChapter(id: string) {
     setMode('chapters');
-    setExpanded(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
+    setExpanded(current => current.includes(id)
+      ? mode === 'chapters' ? current.filter(item => item !== id) : current
+      : [...current, id]);
   }
   const toggle = useRef(toggleChapter);
   toggle.current = toggleChapter;
 
   useEffect(() => {
     if (!container.current) return;
-    const saved = viewports.current.get(viewKey);
     const cy = cytoscape({
-      container: container.current,
-      elements: elements.map(element => ({ ...element, position: saved?.positions.get(element.data.id!) })),
-      style: GRAPH_STYLE,
-      layout: saved ? { name: 'preset', fit: false } : {
-        name: 'cose', animate: false, randomize: false, numIter: 1500, padding: 40,
-        nodeDimensionsIncludeLabels: true, nodeOverlap: 16, componentSpacing: 50,
-        nodeRepulsion: () => 11000, idealEdgeLength: () => 130, gravity: 0.4,
-      },
+      container: container.current, style: GRAPH_STYLE, elements: allElements,
+      layout: { name: 'preset', fit: false },
       minZoom: 0.1, maxZoom: 2.5, wheelSensitivity: 0.2, autounselectify: true,
     });
-    if (saved) cy.viewport({ zoom: saved.zoom, pan: saved.pan });
-    setZoom(Math.round(cy.zoom() * 100));
     cy.on('zoom', () => setZoom(Math.round(cy.zoom() * 100)));
     cy.on('tap', 'node[type="concept"]', event => select.current(event.target.id().slice('concept:'.length)));
     cy.on('tap', 'node[type="chapter"]', event => toggle.current(event.target.id().slice('chapter:'.length)));
@@ -101,22 +99,48 @@ export function GraphExplorer({ snapshot, selectedId, onSelectConcept }: {
     observer.observe(container.current);
     instance.current = cy;
     return () => {
-      viewports.current.set(viewKey, {
-        zoom: cy.zoom(), pan: { ...cy.pan() },
-        positions: new Map(cy.nodes().map(node => [node.id(), { ...node.position() }])),
-      });
       observer.disconnect();
       cy.destroy();
       instance.current = null;
     };
-  }, [elements, viewKey]);
+  }, [allElements]);
+
+  useEffect(() => {
+    const cy = instance.current;
+    if (!cy) return;
+    const saved = viewports.current.get(viewKey);
+    // Keep the elements alive: restoring newly inserted nodes with label-sized
+    // geometry can leave stale drawing bounds in the renderer.
+    const shown = cy.elements().filter(element => visibleIds.has(element.id()));
+    cy.batch(() => {
+      cy.elements().difference(shown).style('display', 'none');
+      shown.style('display', 'element');
+    });
+    shown.layout(saved ? {
+      name: 'preset', fit: false,
+      positions: Object.fromEntries(saved.positions),
+    } : {
+      name: 'cose', animate: false, randomize: false, numIter: 1500, padding: 40,
+      nodeDimensionsIncludeLabels: true, nodeOverlap: 16, componentSpacing: 50,
+      nodeRepulsion: () => 11000, idealEdgeLength: () => 130, gravity: 0.4,
+    }).run();
+    if (saved) cy.viewport({ zoom: saved.zoom, pan: saved.pan });
+    setZoom(Math.round(cy.zoom() * 100));
+    return () => {
+      if (cy.destroyed()) return;
+      viewports.current.set(viewKey, {
+        zoom: cy.zoom(), pan: { ...cy.pan() },
+        positions: new Map(cy.nodes().map(node => [node.id(), { ...node.position() }])),
+      });
+    };
+  }, [allElements, visibleIds, viewKey]);
 
   useEffect(() => {
     const cy = instance.current;
     if (!cy) return;
     cy.nodes().removeClass('selected');
     if (selectedId) cy.getElementById(`concept:${selectedId}`).addClass('selected');
-  }, [selectedId, elements]);
+  }, [selectedId, allElements, visibleIds]);
 
   function changeZoom(factor: number) {
     const cy = instance.current;
