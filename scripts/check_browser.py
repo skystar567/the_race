@@ -89,7 +89,7 @@ async def check(args):
         await expect(page.locator('.missing-image')).to_contain_text('未导入图片')
         await expect(page.locator('.katex')).to_be_visible()
         await expect(page.locator('pre code')).to_contain_text('print("hello")')
-        await page.get_by_role('button', name='2.1 前趋图', exact=True).click()
+        await page.get_by_role('navigation', name='章节目录').get_by_role('button').filter(has_text='2.1 前趋图').click()
         await page.get_by_role('button', name='查看第 5 至 5 行原文').click()
         await expect(page.get_by_role('dialog')).to_contain_text('进程 $P_i$。')
         await page.get_by_role('button', name='关闭', exact=True).click()

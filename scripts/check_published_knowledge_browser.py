@@ -25,6 +25,7 @@ async def check(args):
         await page.goto(args.url)
         await page.get_by_role("navigation", name="课程", exact=True).get_by_role("button").filter(has_text=args.course).click()
         await page.get_by_role("button", name="知识图谱", exact=True).click()
+        await page.get_by_role("button", name="全图", exact=True).click()
         await expect(page.locator(".graph-canvas canvas").first).to_be_visible()
         for concept in snapshot["concepts"]:
             detail = await (await page.request.get(base + f"/versions/{version}/concepts/{concept['id']}")).json()
@@ -49,6 +50,7 @@ async def check(args):
             await page.screenshot(path=args.screenshot, full_page=True)
         await page.reload()
         await page.get_by_role("button", name="知识图谱", exact=True).click()
+        await page.get_by_role("button", name="全图", exact=True).click()
         await expect(page.locator(".concept-list button")).to_have_count(len(snapshot["concepts"]))
         reopened = await (await page.request.get(base)).json()
         assert reopened["version_id"] == version

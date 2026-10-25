@@ -23,6 +23,7 @@ async def check(args):
         nav = page.get_by_role("navigation", name="课程", exact=True)
         await nav.get_by_role("button").filter(has_text=args.course).click()
         await page.get_by_role("button", name="知识图谱", exact=True).click()
+        await page.get_by_role("button", name="全图", exact=True).click()
 
         await expect(page.locator(".graph-canvas canvas").first).to_be_visible()
         await expect(page.get_by_text("已发布", exact=True)).to_be_visible()
@@ -108,6 +109,7 @@ async def check(args):
         await expect(page.locator(".document-heading h2")).to_have_text("尚未整理的补充资料")
         await expect(page.locator(".imported-badge")).to_have_text("已导入 · 尚未整理")
         await page.get_by_role("button", name="知识图谱", exact=True).click()
+        await page.get_by_role("button", name="全图", exact=True).click()
         await expect(page.locator(".graph-canvas canvas").first).to_be_visible()
         await expect(page.locator(".concept-list")).to_contain_text("线程")
 

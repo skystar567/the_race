@@ -1,0 +1,8 @@
+{
+  "source": "计算机操作系统（第四版）.md",
+  "source_sha256": "7495231830d04c26eb57f51286b7fe209f88102ca3912abc8b95f87b8ca69d94",
+  "source_start_line": 1081,
+  "source_end_line": 1085,
+  "sample_sha256": "398de3c11881e83ec5302aa018b45d2689deae82fdc5c877642a480e972990a1",
+  "note": "原文逐字节节选，用于低额度的多章节定义与应用验收。"
+}
