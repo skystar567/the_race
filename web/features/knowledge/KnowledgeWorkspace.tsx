@@ -527,12 +527,16 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
     request<ConceptDetail>(conceptUrl(courseId, versionId, selectedId), { signal: controller.signal })
       .then(detail => { if (!controller.signal.aborted) setSelected(detail); })
       .catch(cause => {
-        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '无法读取知识点页面。');
+        if (!controller.signal.aborted) {
+          setSelectedId(null);
+          setError(cause instanceof Error ? cause.message : '无法读取知识点页面。');
+        }
       });
     return () => controller.abort();
   }, [courseId, versionId, selectedId]);
 
   function selectConcept(id: string) {
+    setError('');
     setSourceId(null);
     setSelectedId(id);
   }
@@ -544,12 +548,16 @@ export function KnowledgeWorkspace({ courseId }: { courseId: string }) {
     request<SourceDetail>(sourceUrl(courseId, versionId, sourceId), { signal: controller.signal })
       .then(detail => { if (!controller.signal.aborted) setSource(detail); })
       .catch(cause => {
-        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '无法读取原文片段。');
+        if (!controller.signal.aborted) {
+          setSourceId(null);
+          setError(cause instanceof Error ? cause.message : '无法读取原文片段。');
+        }
       });
     return () => controller.abort();
   }, [courseId, versionId, sourceId]);
 
   function openSource(snippetId: string) {
+    setError('');
     setSourceId(snippetId);
   }
 

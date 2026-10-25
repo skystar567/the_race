@@ -79,6 +79,22 @@ async def check(args):
             await expect(dialog).to_contain_text("线程是进程中的一个执行单元")
             await dialog.get_by_role("button", name="关闭", exact=True).click()
 
+        async def unavailable(route):
+            await route.fulfill(status=503, content_type="application/json", body='{"detail":"暂时不可用，请重试"}')
+
+        concept_pattern = args.url + f"/api/courses/{course_id}/knowledge/versions/*/concepts/{process_id}"
+        await page.route(concept_pattern, unavailable, times=1)
+        await page.locator(".concept-list").get_by_role("button", name="进程", exact=True).click()
+        await expect(page.get_by_role("alert")).to_contain_text("暂时不可用")
+        await page.locator(".concept-list").get_by_role("button", name="进程", exact=True).click()
+        await expect(page.locator(".concept-panel-head h2")).to_have_text("进程")
+        await page.route(pattern, unavailable, times=1)
+        await page.locator(".concept-citations .citation").first.click()
+        await expect(page.get_by_role("alert")).to_contain_text("暂时不可用")
+        await page.locator(".concept-citations .citation").first.click()
+        await expect(dialog).to_contain_text("进程是程序的一次执行")
+        await dialog.get_by_role("button", name="关闭", exact=True).click()
+
         if args.screenshot:
             await page.screenshot(path=args.screenshot, full_page=True)
 
@@ -102,8 +118,12 @@ async def check(args):
         await expect(page.get_by_text("尚未整理成课程知识", exact=True)).to_be_visible()
         await expect(page.locator(".task-panel.failed")).to_contain_text("失败")
         await expect(page.locator(".task-panel.failed")).to_contain_text("模型输出被截断")
-        await expect(page.get_by_text("后端尚未配置 DEEPSEEK_API_KEY", exact=False)).to_be_visible()
-        await expect(page.locator(".scope-actions .primary")).to_be_disabled()
+        status = await (await page.request.get(args.url + "/api/model/status")).json()
+        if not status["configured"]:
+            await expect(page.get_by_text("后端尚未配置 DEEPSEEK_API_KEY", exact=False)).to_be_visible()
+            await expect(page.locator(".scope-actions .primary")).to_be_disabled()
+        else:
+            await expect(page.locator(".scope-actions .primary")).to_be_enabled()
 
         await page.set_viewport_size({"width": 390, "height": 844})
         await expect(page.locator(".task-panel.failed")).to_be_visible()
