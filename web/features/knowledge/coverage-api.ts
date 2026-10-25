@@ -23,4 +23,3 @@ export const COVERAGE_LABEL: Record<CoverageStatus, string> = {
 export function coverageUrl(courseId: string, versionId?: string | null): string {
   return knowledgeUrl(courseId) + '/coverage' + (versionId ? `?version_id=${encodeURIComponent(versionId)}` : '');
 }
-
